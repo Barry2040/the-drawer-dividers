@@ -5,6 +5,8 @@ use <lib/drawer_divider.scad>
 /* [Part] */
 // Connector type
 Type = "cross"; // [cross:Cross (+), tee:T-piece, corner:Corner (L), straight:Straight joiner, end:End piece, slip_cross:Slip-on cross, slip_tee:Slip-on T, slip_corner_r:Slip-on corner right, slip_corner_l:Slip-on corner left]
+// For a slip-on layout: closed cap like the slip-on connectors, pushed on from above
+Slip_On_Set = false;
 // How many copies on the plate
 Count = 1; // [1:1:40]
 // Gap between copies (mm)
@@ -60,4 +62,4 @@ P = dd_profile(
     end_gap = End_Gap, top_gap = Top_Gap);
 
 pitch = dd_connector_size(P) + Spacing;
-dd_grid(Count, pitch, pitch) dd_connector(Type, P);
+dd_grid(Count, pitch, pitch) dd_connector(Type, P, Slip_On_Set);

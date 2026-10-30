@@ -4,6 +4,8 @@
 /* [Part] */
 // Connector type
 Type = "cross"; // [cross:Cross (+), tee:T-piece, corner:Corner (L), straight:Straight joiner, end:End piece, slip_cross:Slip-on cross, slip_tee:Slip-on T, slip_corner_r:Slip-on corner right, slip_corner_l:Slip-on corner left]
+// For a slip-on layout: closed cap like the slip-on connectors, pushed on from above
+Slip_On_Set = false;
 // How many copies on the plate
 Count = 1; // [1:1:40]
 // Gap between copies (mm)
@@ -59,7 +61,7 @@ P = dd_profile(
     end_gap = End_Gap, top_gap = Top_Gap);
 
 pitch = dd_connector_size(P) + Spacing;
-dd_grid(Count, pitch, pitch) dd_connector(Type, P);
+dd_grid(Count, pitch, pitch) dd_connector(Type, P, Slip_On_Set);
 
 // ============================================================================
 //  Library (scad/lib/drawer_divider.scad, inlined by tools/build.py)
@@ -150,11 +152,13 @@ function dd_connector_def(type) =
     type == "slip_corner_l" ? [[0,1,1,0], [0,1,1,1], true,  true ] :
     undef;
 
-module dd_connector(type = "cross", p = dd_profile()) {
+// slip = true: part of a slip-on set. Every connector of the set gets the cap and
+// is pushed on from above, also where the walls end instead of running through.
+module dd_connector(type = "cross", p = dd_profile(), slip = false) {
     def = dd_connector_def(type);
     assert(!is_undef(def), str("dd_connector(): unknown type '", type, "'"));
     dd_connector_custom(arms = def[0], slots = def[1], through_y = def[2],
-                        cap = dd_cap(p, def[3]), p = p);
+                        cap = dd_cap(p, def[3] || slip), p = p);
 }
 
 // Build any connector from an arm/slot pattern.

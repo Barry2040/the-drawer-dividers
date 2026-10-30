@@ -168,10 +168,12 @@ DE = Language == "de";
 function name_of(type) =
     let(n = [["cross", "Cross", "Kreuz"], ["tee", "T-piece", "T-Stück"], ["corner", "Corner", "Ecke"],
              ["straight", "Straight joiner", "Gerade (Verlängerung)"], ["end", "End piece", "Endstück"],
-             ["slip_cross", "Slip-on cross", "Aufsteck-Kreuz"], ["slip_tee", "Slip-on T", "Aufsteck-T"],
+             ["slip_cross", "Slip-on cross, through", "Aufsteck-Kreuz durchgehend"], ["slip_tee", "Slip-on T, through", "Aufsteck-T durchgehend"],
              ["slip_corner_r", "Slip-on corner R", "Aufsteck-Ecke R"], ["slip_corner_l", "Slip-on corner L", "Aufsteck-Ecke L"]],
-        m = [for (x = n) if (x[0] == type) x][0])
-    DE ? m[2] : m[1];
+        m = [for (x = n) if (x[0] == type) x][0],
+        through = len([for (t = ["slip_cross", "slip_tee", "slip_corner_r", "slip_corner_l"]) if (t == type) 1]) > 0)
+    // in a slip-on layout every connector carries the cap
+    str(Slip_On && !through ? (DE ? "Aufsteck-" : "Slip-on ") : "", DE ? m[2] : m[1]);
 
 function line_label(b) =
     b[0] == "c" ? name_of(b[1])
@@ -182,7 +184,7 @@ function line_label(b) =
 
 // ---- one printable part per parts-list line -------------------------------
 module part(b) {
-    if (b[0] == "c") dd_connector(b[1], P);
+    if (b[0] == "c") dd_connector(b[1], P, Slip_On);
     else if (b[0] == "w") {
         if (Wall_Orientation == "flat")
             translate([0, WALL_H / 2, 0]) dd_lay_flat(T) wall_part(b[1]);
@@ -232,9 +234,9 @@ module assembly() {
     // connectors as they sit in the drawer, slots open so the walls show inside
     CS = dd(L, "conns");
     for (k = [0 : 1 : len(CS) - 1]) let(c = CS[k])
-        color(len(search(k, CLASH)) ? "#d03030" : c[5] ? "#b07a3c" : c[4] != "" ? "#d4570f" : "#f07020")
+        color(len(search(k, CLASH)) ? "#d03030" : c[5] ? "#b07a3c" : Slip_On ? "#d4570f" : "#f07020")
             translate([c[1], c[2], 0])
-                dd_connector_installed(c[3], c[4], dd_cap(P, c[4] != ""), P);
+                dd_connector_installed(c[3], c[4], dd_cap(P, Slip_On), P);
     // rails
     for (r = dd(L, "rails")) color("#7f93ad")
         if (r[0] == "L") translate([0, r[1], 0]) cube([RAIL_T, r[3], RAIL_W]);
@@ -365,11 +367,13 @@ function dd_connector_def(type) =
     type == "slip_corner_l" ? [[0,1,1,0], [0,1,1,1], true,  true ] :
     undef;
 
-module dd_connector(type = "cross", p = dd_profile()) {
+// slip = true: part of a slip-on set. Every connector of the set gets the cap and
+// is pushed on from above, also where the walls end instead of running through.
+module dd_connector(type = "cross", p = dd_profile(), slip = false) {
     def = dd_connector_def(type);
     assert(!is_undef(def), str("dd_connector(): unknown type '", type, "'"));
     dd_connector_custom(arms = def[0], slots = def[1], through_y = def[2],
-                        cap = dd_cap(p, def[3]), p = p);
+                        cap = dd_cap(p, def[3] || slip), p = p);
 }
 
 // Build any connector from an arm/slot pattern.

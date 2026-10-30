@@ -27,9 +27,14 @@ const TYPES = {
   corner:     { name: 'Ecke', desc: '2 Wände im 90°-Winkel' },
   straight:   { name: 'Gerade', desc: 'Verlängert eine geteilte Wand' },
   end:        { name: 'Endstück', desc: 'Freies Wandende / am Rand' },
-  slip_cross: { name: 'Aufsteck-Kreuz', desc: 'Auf durchgehende Wand gesteckt' },
-  slip_tee:   { name: 'Aufsteck-T', desc: 'Auf durchgehende Wand gesteckt' },
+  slip_cross: { name: 'Aufsteck-Kreuz durchgehend', desc: 'Auf durchgehende Wand gesteckt' },
+  slip_tee:   { name: 'Aufsteck-T durchgehend', desc: 'Auf durchgehende Wand gesteckt' },
 };
+// With slip-on connectors every connector of the drawer carries the cap and is
+// pushed on from above, also where the walls end instead of running through.
+const cappedSet = t => S.settings.slip && !t.startsWith('slip');
+const typeName = t => (cappedSet(t) ? 'Aufsteck-' : '') + TYPES[t].name;
+const typeDesc = t => TYPES[t].desc + (cappedSet(t) ? ', Wände enden darin' : '');
 const TYPE_ORDER = Object.keys(TYPES);
 
 function defaultSettings() {
@@ -380,9 +385,9 @@ function connArms(type, n) {
 // ---------------------------------------------------------------------------
 // Bill of materials
 // ---------------------------------------------------------------------------
-function connVolume(type, g, p) {
+function connVolume(type, g, p, slipSet) {
   const arms = connArms(type), slip = type.startsWith('slip');
-  const cap = slip ? Math.max(p.cap, p.floor_t) : p.cap;
+  const cap = slip || slipSet ? Math.max(p.cap, p.floor_t) : p.cap;
   const n = arms.reduce((s, v) => s + v, 0);
   const slotA = slip ? g.slotW * (2 * p.arm + (n - 2) * p.insert) : g.slotW * p.insert * n;
   return polyArea(connOutline(arms, g, p)) * p.height - slotA * (p.height - cap);
@@ -426,7 +431,7 @@ function buildBom(S, g, nodes, pieces, rails) {
     railMap.get(k).qty++;
   }
   const out = {
-    connectors: TYPE_ORDER.filter(t => conns.has(t)).map(t => ({ type: t, qty: conns.get(t), g: connVolume(t, g, p) * dens })),
+    connectors: TYPE_ORDER.filter(t => conns.has(t)).map(t => ({ type: t, qty: conns.get(t), g: connVolume(t, g, p, S.settings.slip) * dens })),
     walls: [...walls.values()].sort((a, b) => b.len - a.len).map(w => ({ ...w, g: w.len * w.h * g.t * (1 - wallHoleFraction(w.len, w.h, S)) * dens })),
     rails: [...railMap.values()].map(r => {
       const teeth = Math.floor(r.len / g.pitch);
@@ -648,7 +653,7 @@ function drawSVG() {
 
   // connectors
   for (const n of A.nodes) if (n.kind === 'conn')
-    out.push(connSvg(n, g, p, 'conn' + (n.type.startsWith('slip') ? ' slip' : '') + (n.joint ? ' joint' : '') + (n.clash ? ' clash' : '')));
+    out.push(connSvg(n, g, p, 'conn' + (S.settings.slip ? ' slip' : '') + (n.joint ? ' joint' : '') + (n.clash ? ' clash' : '')));
 
   // walls – drawn over the connectors so the part that sits in the slot stays visible
   const hlLine = ui.tool === 'select' && ui.sel !== null ? S.walls[ui.sel] : null;
@@ -711,7 +716,7 @@ function iconSvg(kind, type) {
   const g = { armW: 7.2, slotW: 2.2, pocket: 6 }, p = { arm: 12, fillet: 5 };
   const n = { x: 14, y: 14, dirs: connArms(type), through: type.startsWith('slip') ? 'v' : null };
   if (type === 'slip_tee') n.dirs = [1, 1, 0, 1];
-  return `<svg viewBox="0 0 28 28">${connSvg(n, g, p, 'conn' + (type.startsWith('slip') ? ' slip' : '') + (type === 'straight' ? ' joint' : ''))}</svg>`;
+  return `<svg viewBox="0 0 28 28">${connSvg(n, g, p, 'conn' + (S.settings.slip ? ' slip' : '') + (type === 'straight' ? ' joint' : ''))}</svg>`;
 }
 
 function drawPanels() {
@@ -726,7 +731,7 @@ function drawPanels() {
     `<div class="bom-item"><div class="bom-ico">${ico}</div><div><div class="bom-name">${name}</div><div class="bom-sub">${sub}</div></div><div class="bom-qty">${qty}<small>×</small></div></div>`;
   if (b.connectors.length) {
     h += `<div class="bom-group"><h4><span>Verbinder · ${fmt(S.profile.height)} mm hoch</span><span>${b.connectors.reduce((s, c) => s + c.qty, 0)}</span></h4>`;
-    for (const c of b.connectors) h += item(iconSvg('conn', c.type), TYPES[c.type].name, `${TYPES[c.type].desc} · ca. ${fmt(c.g)} g`, c.qty);
+    for (const c of b.connectors) h += item(iconSvg('conn', c.type), typeName(c.type), `${typeDesc(c.type)} · ca. ${fmt(c.g)} g`, c.qty);
     h += '</div>';
   }
   if (b.walls.length) {
@@ -1043,7 +1048,7 @@ svg.addEventListener('pointermove', e => {
   } else if (ui.tool === 'erase') ui.eraseHL = hitLineInterval(m);
   else if (ui.tool === 'split') computeSplit(m);
   const n = !d && hitNode(m);
-  showTip(e, n ? `${TYPES[n.type].name}${n.joint ? ' (Verlängerung)' : ''}` : null);
+  showTip(e, n ? `${typeName(n.type)}${n.joint ? ' (Verlängerung)' : ''}` : null);
   drawSVG();
 });
 svg.addEventListener('pointerup', e => {
@@ -1201,7 +1206,7 @@ function download(name, text, type) {
 
 function bomCsv() {
   const b = A.bom, rows = [['Kategorie', 'Teil', 'Länge (mm)', 'Höhe/Breite (mm)', 'Anzahl', 'ca. Gramm je Stück', 'Hinweis']];
-  for (const c of b.connectors) rows.push(['Verbinder', TYPES[c.type].name, '', fmt(S.profile.height), c.qty, fmt(c.g), c.type]);
+  for (const c of b.connectors) rows.push(['Verbinder', typeName(c.type), '', fmt(S.profile.height), c.qty, fmt(c.g), c.type]);
   for (const w of b.walls) rows.push(['Wand', `Wand ${fmt(w.len)}`, fmt(w.len), fmt(w.h), w.qty, fmt(w.g), `Dicke ${fmt(A.g.t)}`]);
   for (const r of b.rails) rows.push(['Schiene', `Schiene ${fmt(r.len)}`, fmt(r.len), fmt(r.width), r.qty, fmt(r.g), `Zahnversatz ${fmt(r.offset, 2)}${r.tongue ? ', Zapfen' : ''}${r.socket ? ', Buchse' : ''}`]);
   rows.push([], ['Summe', '', '', '', b.parts, fmt(b.grams, 0), `Schublade ${S.drawer.w}×${S.drawer.d}×${S.drawer.h} mm`]);
@@ -1218,7 +1223,7 @@ function buildJob() {
   const prof = `dd_profile(${Object.entries(p).map(([k, v]) => `${k} = ${num(v)}`).join(', ')})`;
   const parts = [];   // {label, body, px, py, qty, w}
   for (const c of b.connectors)
-    parts.push({ label: `${TYPES[c.type].name}`, body: `dd_connector("${c.type}", P);`, px: 2 * p.arm + 4, py: 2 * p.arm + 4, qty: c.qty, w: 2 * p.arm });
+    parts.push({ label: typeName(c.type), body: `dd_connector("${c.type}", P${st.slip ? ', slip = true' : ''});`, px: 2 * p.arm + 4, py: 2 * p.arm + 4, qty: c.qty, w: 2 * p.arm });
   const flat = st.orient === 'flat';
   for (const w of b.walls) {
     const call = `dd_wall(${num(w.len)}, P, height = ${num(w.h)}, pattern = "${st.pattern}", grip = ${num(st.grip)})`;
@@ -1366,9 +1371,9 @@ function build3D(resetCam) {
     const o = new THREE.Mesh(geo, m); o.position.set(n.x, y0, n.y); group.add(o);
   };
   for (const n of A.nodes) if (n.kind === 'conn') {
-    const m = n.clash ? mBad : n.joint ? mJoint : n.type.startsWith('slip') ? mSlip : mConn;
+    const m = n.clash ? mBad : n.joint ? mJoint : st.slip ? mSlip : mConn;
     if (n.type.startsWith('slip')) { extrude(connOutline(n.dirs, g, p), p.height, 0, m, n); continue; }
-    const cap = Math.min(p.cap, p.height - 1);
+    const cap = Math.min(st.slip ? Math.max(p.cap, p.floor_t) : p.cap, p.height - 1);
     extrude(connOutline(n.dirs, g, p, 8, true), p.height - cap, 0, m, n);
     if (cap > 0) extrude(connOutline(n.dirs, g, p), cap, p.height - cap, m, n);
   }

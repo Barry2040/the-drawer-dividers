@@ -198,11 +198,13 @@ function dd_connector_def(type) =
     type == "slip_corner_l" ? [[0,1,1,0], [0,1,1,1], true,  true ] :
     undef;
 
-module dd_connector(type = "cross", p = dd_profile()) {
+// slip = true: part of a slip-on set. Every connector of the set gets the cap and
+// is pushed on from above, also where the walls end instead of running through.
+module dd_connector(type = "cross", p = dd_profile(), slip = false) {
     def = dd_connector_def(type);
     assert(!is_undef(def), str("dd_connector(): unknown type '", type, "'"));
     dd_connector_custom(arms = def[0], slots = def[1], through_y = def[2],
-                        cap = dd_cap(p, def[3]), p = p);
+                        cap = dd_cap(p, def[3] || slip), p = p);
 }
 
 // Build any connector from an arm/slot pattern.

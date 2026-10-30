@@ -28,6 +28,7 @@ SECTIONS = {
 # English variable -> (German variable, German description)
 VARS = {
     "Type": ("Verbinder_Typ", "Art des Verbinders"),
+    "Slip_On_Set": ("Aufsteck_Satz", "Für Aufsteck-Verbinder: mit Deckel wie die Aufsteck-Verbinder, wird von oben aufgesteckt"),
     "Count": ("Anzahl", "Wie viele Teile auf dem Druckbett"),
     "Spacing": ("Abstand", "Abstand zwischen den Teilen (mm)"),
     "Wall_Thickness": ("Wand_Dicke", "Exakte Dicke deiner gedruckten Trennwände (mm)"),
@@ -107,7 +108,7 @@ DEFAULTS = {"Language": '"de"'}
 # dropdown value -> German label ("Variable.value" overrides a plain value)
 LABELS = {
     "cross": "Kreuz (+)", "tee": "T-Stück", "corner": "Ecke (L)", "straight": "Gerade (Verlängerung)",
-    "end": "Endstück", "slip_cross": "Aufsteck-Kreuz", "slip_tee": "Aufsteck-T-Stück",
+    "end": "Endstück", "slip_cross": "Aufsteck-Kreuz durchgehend", "slip_tee": "Aufsteck-T-Stück durchgehend",
     "slip_corner_r": "Aufsteck-Ecke rechts", "slip_corner_l": "Aufsteck-Ecke links",
     "standing": "Stehend", "flat": "Liegend",
     "none": "Keins", "hex": "Waben", "circle": "Kreise",

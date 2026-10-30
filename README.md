@@ -29,7 +29,7 @@ V3 ist der Nachfolger der beiden MakerWorld-Projekte [V1 – The Drawer Dividers
   - **Endstücke** – keine Außenwand, die Wände enden mit einem Endstück an der Schubladenwand
   - **Raster-Schienen** – Zahnschienen an den Schubladenseiten, die Wände rasten zwischen den Zähnen ein
   - **Direkt klemmen** – die Wände laufen bis an die Schubladenwand, kein Teil am Rand
-- **Aufsteck-Verbinder** (optional) – lange Wände laufen über die Kreuzungen durch, die Verbinder werden von oben aufgesteckt. Das ergibt weniger und längere Wände; die Wände sind dafür 2 mm niedriger, damit der Deckel des Verbinders bündig sitzt.
+- **Aufsteck-Verbinder** (optional) – lange Wände laufen über die Kreuzungen durch, die Verbinder werden von oben aufgesteckt. Das ergibt weniger und längere Wände; die Wände sind dafür 2 mm niedriger, damit der Deckel des Verbinders bündig sitzt. In diesem Modus haben *alle* Verbinder den Deckel – auch dort, wo eine Wand endet (Ecken, Kreuzungen an denen eine zu lange Wand geteilt wird); dann ist nur der Schlitz nicht durchgehend.
 
 ---
 
@@ -127,7 +127,7 @@ translate([0, 60, 0]) dd_rail(200, 40, P);
 
 | Modul / Funktion | Was |
 |---|---|
-| `dd_connector(type, P)` | `cross`, `tee`, `corner`, `straight`, `end`, `slip_cross`, `slip_tee`, `slip_corner_r`, `slip_corner_l` |
+| `dd_connector(type, P, slip = false)` | `cross`, `tee`, `corner`, `straight`, `end`, `slip_cross`, `slip_tee`, `slip_corner_r`, `slip_corner_l` |
 | `dd_connector_custom(arms, slots, through_y, cap, P)` | beliebige Arm-Kombinationen |
 | `dd_wall(length, P, …)` | Wand mit Waben-/Kreismuster, Griffmulde, Endfasen |
 | `dd_rail(length, width, P, …)` | Raster-Schiene mit Zapfen/Buchse, Schraubenlöchern, `teeth_offset` |

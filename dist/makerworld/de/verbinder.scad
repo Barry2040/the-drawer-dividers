@@ -4,7 +4,9 @@
 
 /* [Bauteil] */
 // Art des Verbinders
-Verbinder_Typ = "cross"; // [cross:Kreuz (+), tee:T-Stück, corner:Ecke (L), straight:Gerade (Verlängerung), end:Endstück, slip_cross:Aufsteck-Kreuz, slip_tee:Aufsteck-T-Stück, slip_corner_r:Aufsteck-Ecke rechts, slip_corner_l:Aufsteck-Ecke links]
+Verbinder_Typ = "cross"; // [cross:Kreuz (+), tee:T-Stück, corner:Ecke (L), straight:Gerade (Verlängerung), end:Endstück, slip_cross:Aufsteck-Kreuz durchgehend, slip_tee:Aufsteck-T-Stück durchgehend, slip_corner_r:Aufsteck-Ecke rechts, slip_corner_l:Aufsteck-Ecke links]
+// Für Aufsteck-Verbinder: mit Deckel wie die Aufsteck-Verbinder, wird von oben aufgesteckt
+Aufsteck_Satz = false;
 // Wie viele Teile auf dem Druckbett
 Anzahl = 1; // [1:1:40]
 // Abstand zwischen den Teilen (mm)
@@ -50,6 +52,7 @@ Magnet_Tiefe = 2; // [0.1:0.1:10]
 
 /* [Hidden] */
 Type = Verbinder_Typ;
+Slip_On_Set = Aufsteck_Satz;
 Count = Anzahl;
 Spacing = Abstand;
 Wall_Thickness = Wand_Dicke;
@@ -79,7 +82,7 @@ P = dd_profile(
     end_gap = End_Gap, top_gap = Top_Gap);
 
 pitch = dd_connector_size(P) + Spacing;
-dd_grid(Count, pitch, pitch) dd_connector(Type, P);
+dd_grid(Count, pitch, pitch) dd_connector(Type, P, Slip_On_Set);
 
 // ============================================================================
 //  Library (scad/lib/drawer_divider.scad, inlined by tools/build.py)
@@ -170,11 +173,13 @@ function dd_connector_def(type) =
     type == "slip_corner_l" ? [[0,1,1,0], [0,1,1,1], true,  true ] :
     undef;
 
-module dd_connector(type = "cross", p = dd_profile()) {
+// slip = true: part of a slip-on set. Every connector of the set gets the cap and
+// is pushed on from above, also where the walls end instead of running through.
+module dd_connector(type = "cross", p = dd_profile(), slip = false) {
     def = dd_connector_def(type);
     assert(!is_undef(def), str("dd_connector(): unknown type '", type, "'"));
     dd_connector_custom(arms = def[0], slots = def[1], through_y = def[2],
-                        cap = dd_cap(p, def[3]), p = p);
+                        cap = dd_cap(p, def[3] || slip), p = p);
 }
 
 // Build any connector from an arm/slot pattern.
