@@ -2,6 +2,8 @@
 
 Ein parametrisches System aus 3D-gedruckten Schubladentrennern: **Wände**, **Verbinder** und optional **Raster-Schienen**. Die Geometrie steckt komplett in **OpenSCAD**. Dazu gibt es einen **Designer im Browser**: Du misst deine Schublade aus, zeichnest die Fächer, und der Designer erzeugt alle Teile als STL zum Drucken.
 
+**➜ Designer online öffnen: [barry2040.github.io/the-drawer-dividers](https://barry2040.github.io/the-drawer-dividers/)**
+
 V3 ist der Nachfolger der beiden MakerWorld-Projekte [V1 – The Drawer Dividers](https://makerworld.com/de/models/496828-the-drawer-dividers) und [V2 – Parametric System](https://makerworld.com/de/models/3106623-the-drawer-dividers-v2-parametric-system). Die Standardwerte sind die von V2: 2 mm Wände, 0,2 mm Toleranz, offene Verbinder.
 
 ---
@@ -10,7 +12,7 @@ V3 ist der Nachfolger der beiden MakerWorld-Projekte [V1 – The Drawer Dividers
 
 | Du willst … | Dann … |
 |---|---|
-| eine Schublade planen und alle STLs bekommen | **HTML-Designer**: `designer/index.html` öffnen (siehe unten) |
+| eine Schublade planen und alle STLs bekommen | **HTML-Designer**: [online öffnen](https://barry2040.github.io/the-drawer-dividers/) oder `designer/index.html` lokal (siehe unten) |
 | ohne Zeichnen, nur mit Zahlen arbeiten (z.B. auf MakerWorld) | **SCAD-Designer**: `scad/drawer_designer.scad` in OpenSCAD |
 | einzelne Teile nachdrucken | `scad/connector.scad`, `wall.scad`, `rail.scad` in OpenSCAD |
 | erst mal prüfen, ob die Wände in die Schlitze passen | `scad/tolerance_test.scad` drucken |
@@ -35,7 +37,9 @@ V3 ist der Nachfolger der beiden MakerWorld-Projekte [V1 – The Drawer Dividers
 
 ### Öffnen
 
-`designer/index.html` per Doppelklick im Browser öffnen (Chrome, Edge oder Firefox). Eine Installation ist nicht nötig.
+Am einfachsten **online**: [barry2040.github.io/the-drawer-dividers](https://barry2040.github.io/the-drawer-dividers/). Die Seite wird bei jeder Änderung an `designer/` automatisch neu veröffentlicht.
+
+Oder **lokal**: `designer/index.html` per Doppelklick im Browser öffnen (Chrome, Edge oder Firefox). Eine Installation ist nicht nötig.
 
 Falls *STLs erzeugen* per Doppelklick nicht startet, weil manche Browser bei lokalen Dateien keine Worker erlauben, öffne den Designer über einen kleinen lokalen Server:
 
@@ -157,6 +161,7 @@ scad/
 dist/makerworld/en/ de/     Einzeldateien für MakerWorld (Bibliothek eingebettet, werden erzeugt)
 legacy/v2-original/         Original-SCADs von V2
 tools/                      Build-Skript und deutsche Übersetzung
+.github/workflows/pages.yml veröffentlicht designer/ auf GitHub Pages
 ```
 
 ## Was gegenüber V2 verbessert ist
