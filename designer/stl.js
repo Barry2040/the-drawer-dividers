@@ -29,13 +29,13 @@ async function render(num) {
       if (rc === 0 && data && data.length > 84) { flags = f; return new Uint8Array(data); }
     }
   }
-  throw new Error(errs.filter(l => /error|warning/i.test(l)).slice(-2).join(' ') || 'OpenSCAD hat keine STL erzeugt');
+  throw new Error(errs.filter(l => /error|warning/i.test(l)).slice(-2).join(' ') || ${JSON.stringify(T('OpenSCAD hat keine STL erzeugt'))});
 }
 self.onmessage = async (e) => {
   if (e.data.type !== 'run') return;
   job = e.data.scad; mod = null;
-  try { self.postMessage({ type: 'status', text: 'OpenSCAD wird geladen …' }); await fresh(); }
-  catch (err) { self.postMessage({ type: 'fatal', text: 'OpenSCAD konnte nicht geladen werden: ' + (err && err.message || err) }); return; }
+  try { self.postMessage({ type: 'status', text: ${JSON.stringify(T('OpenSCAD wird geladen …'))} }); await fresh(); }
+  catch (err) { self.postMessage({ type: 'fatal', text: ${JSON.stringify(T('OpenSCAD konnte nicht geladen werden: '))} + (err && err.message || err) }); return; }
   for (const pl of e.data.plates) {
     self.postMessage({ type: 'start', num: pl.num });
     const t0 = Date.now();
@@ -74,7 +74,7 @@ function startEngine(onMessage) {
       if (e.data.type === 'start') started = true;
       if (e.data.type === 'fatal' && !started) fallback(); else onMessage(e.data);
     };
-    w.onerror = e => { e.preventDefault(); if (!started) fallback(); else onMessage({ type: 'fatal', text: 'Worker-Fehler: ' + (e.message || 'unbekannt') }); };
+    w.onerror = e => { e.preventDefault(); if (!started) fallback(); else onMessage({ type: 'fatal', text: T('Worker-Fehler: ') + (e.message || '?') }); };
   } catch (err) {
     active = { inline: true, ...startInline(onMessage) };
   }
@@ -183,20 +183,20 @@ function saveBlob(name, blob) {
 }
 
 function openStlDialog() {
-  if (!A.bom.parts) { flash('Noch keine Teile – zeichne zuerst Fächer in die Schublade.'); return; }
+  if (!A.bom.parts) { flash(T('Noch keine Teile – zeichne zuerst Fächer in die Schublade.')); return; }
   stl.job = buildJob();
   stl.plates = stl.job.plates;
   stl.results = new Map();
   const list = $('#stlList');
   list.innerHTML = stl.plates.map(pl => `<div class="stl-row" data-num="${pl.num}">
       <span class="stl-state">○</span><span class="stl-name">${esc(pl.label)}</span>
-      <span class="stl-info">wartet</span><button class="btn stl-dl" disabled>STL</button></div>`).join('');
+      <span class="stl-info">${T('wartet')}</span><button class="btn stl-dl" disabled>STL</button></div>`).join('');
   for (const b of list.querySelectorAll('.stl-dl')) b.addEventListener('click', () => {
     const num = +b.closest('.stl-row').dataset.num, pl = stl.plates.find(p => p.num === num);
     saveBlob(plateFile(pl), new Blob([stl.results.get(num)], { type: 'model/stl' }));
   });
   $('#stlZip').disabled = true; $('#stl3mf').disabled = true;
-  $('#stlStatus').textContent = 'Startet …';
+  $('#stlStatus').textContent = T('Startet …');
   $('#stlBar').style.width = '0%';
   $('#stlDlg').showModal();
   runStl();
@@ -220,15 +220,15 @@ function runStl() {
   stl.engine = startEngine(m => {
     if (m.type === 'status') $('#stlStatus').textContent = m.text;
     else if (m.type === 'fatal') { $('#stlStatus').textContent = m.text; }
-    else if (m.type === 'start') { setRow(m.num, 'run', 'wird gerechnet …'); $('#stlStatus').textContent = `Platte ${m.num} von ${total} …`; }
+    else if (m.type === 'start') { setRow(m.num, 'run', T('wird gerechnet …')); $('#stlStatus').textContent = T`Platte ${m.num} von ${total} …`; }
     else if (m.type === 'done') {
       stl.results.set(m.num, m.data); doneCount++; progress();
-      setRow(m.num, 'ok', `${(m.data.length / 1048576).toFixed(1).replace('.', ',')} MB · ${(m.ms / 1000).toFixed(0)} s`);
+      setRow(m.num, 'ok', `${fmt(m.data.length / 1048576)} MB · ${(m.ms / 1000).toFixed(0)} s`);
       $('#stlZip').disabled = false; $('#stl3mf').disabled = false;
     } else if (m.type === 'fail') { doneCount++; progress(); setRow(m.num, 'err', m.text.slice(0, 120)); }
     else if (m.type === 'finished') {
       const ok = stl.results.size;
-      $('#stlStatus').textContent = ok === total ? `Fertig – ${ok} STL-Dateien bereit.` : `Fertig – ${ok} von ${total} Platten erzeugt.`;
+      $('#stlStatus').textContent = ok === total ? T`Fertig – ${ok} STL-Dateien bereit.` : T`Fertig – ${ok} von ${total} Platten erzeugt.`;
       stl.engine = null;
     }
   });
@@ -242,18 +242,18 @@ $('#stlDlg').addEventListener('close', () => { if (stl.engine) { stl.engine.stop
 $('#stlZip').addEventListener('click', async () => {
   const base = fileBase();
   const files = stl.plates.filter(pl => stl.results.has(pl.num)).map(pl => ({ name: `${base}/${plateFile(pl)}`, data: stl.results.get(pl.num) }));
-  files.push({ name: `${base}/${base}_stueckliste.csv`, data: bomCsv() },
-             { name: `${base}/${base}_druckjob.scad`, data: stl.job.scad },
-             { name: `${base}/${base}_projekt.json`, data: JSON.stringify(S, null, 2) });
-  saveBlob(base + '_teile.zip', await makeZip(files));
+  files.push({ name: `${base}/${base}${T('_stueckliste')}.csv`, data: bomCsv() },
+             { name: `${base}/${base}${T('_druckjob')}.scad`, data: stl.job.scad },
+             { name: `${base}/${base}${T('_projekt')}.json`, data: JSON.stringify(S, null, 2) });
+  saveBlob(base + T('_teile') + '.zip', await makeZip(files));
 });
 $('#stl3mf').addEventListener('click', async () => {
-  const btn = $('#stl3mf'); btn.disabled = true; $('#stlStatus').textContent = '3MF wird gebaut …';
+  const btn = $('#stl3mf'); btn.disabled = true; $('#stlStatus').textContent = T('3MF wird gebaut …');
   try {
     const plates = stl.plates.filter(pl => stl.results.has(pl.num)).map(pl => ({ name: plateFile(pl).replace(/\.stl$/, ''), data: stl.results.get(pl.num) }));
     const blob = await make3mf(plates, S.settings.bed);
     saveBlob(fileBase() + '.3mf', new Blob([blob], { type: 'model/3mf' }));
-    $('#stlStatus').textContent = `3MF mit ${plates.length} Platten gespeichert.`;
-  } catch (err) { $('#stlStatus').textContent = '3MF fehlgeschlagen: ' + (err && err.message || err); }
+    $('#stlStatus').textContent = T`3MF mit ${plates.length} Platten gespeichert.`;
+  } catch (err) { $('#stlStatus').textContent = T('3MF fehlgeschlagen: ') + (err && err.message || err); }
   btn.disabled = false;
 });

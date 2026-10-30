@@ -1,5 +1,7 @@
 # The Drawer Dividers – V3
 
+🇬🇧 [English version](README.en.md)
+
 Ein parametrisches System aus 3D-gedruckten Schubladentrennern: **Wände**, **Verbinder** und optional **Raster-Schienen**. Die Geometrie steckt komplett in **OpenSCAD**. Dazu gibt es einen **Designer im Browser**: Du misst deine Schublade aus, zeichnest die Fächer, und der Designer erzeugt alle Teile als STL zum Drucken.
 
 **➜ Designer online öffnen: [barry2040.github.io/the-drawer-dividers](https://barry2040.github.io/the-drawer-dividers/)**
@@ -14,7 +16,7 @@ V3 ist der Nachfolger der beiden MakerWorld-Projekte [V1 – The Drawer Dividers
 |---|---|
 | eine Schublade planen und alle STLs bekommen | **HTML-Designer**: [online öffnen](https://barry2040.github.io/the-drawer-dividers/) oder `Drawer-Divider-Designer.html` herunterladen und öffnen (siehe unten) |
 | ohne Zeichnen, nur mit Zahlen arbeiten (z.B. auf MakerWorld) | **SCAD-Designer**: `scad/drawer_designer.scad` in OpenSCAD |
-| einzelne Teile nachdrucken | `scad/connector.scad`, `wall.scad`, `rail.scad` in OpenSCAD |
+| einzelne Teile nachdrucken | `scad/connector.scad`, `wall.scad`, `rail.scad`, `label_clip.scad` in OpenSCAD |
 | erst mal prüfen, ob die Wände in die Schlitze passen | `scad/tolerance_test.scad` drucken |
 
 ---
@@ -29,6 +31,9 @@ V3 ist der Nachfolger der beiden MakerWorld-Projekte [V1 – The Drawer Dividers
   - **Endstücke** – keine Außenwand, die Wände enden mit einem Endstück an der Schubladenwand
   - **Raster-Schienen** – Zahnschienen an den Schubladenseiten, die Wände rasten zwischen den Zähnen ein
   - **Direkt klemmen** – die Wände laufen bis an die Schubladenwand, kein Teil am Rand
+- **Gerundete Schubladenecken** – hat die Schublade innen runde Ecken, trägst du den *Eckradius* ein; die Rahmenecken werden außen passend abgerundet.
+- **Wandbuchstaben** – jede Wandlänge bekommt einen Buchstaben (A = längste). Buchstabe und Länge werden in die Wandenden graviert, die im Verbinder verschwinden, und stehen im Aufbauplan.
+- **Beschriftungsclips** (optional) – ein Clip pro Fach, wird oben auf eine Wand gesteckt und mit Stift oder Etikett beschriftet.
 - **Aufsteck-Verbinder** (optional) – lange Wände laufen über die Kreuzungen durch, die Verbinder werden von oben aufgesteckt. Das ergibt weniger und längere Wände; die Wände sind dafür 2 mm niedriger, damit der Deckel des Verbinders bündig sitzt. In diesem Modus haben *alle* Verbinder den Deckel – auch dort, wo eine Wand endet (Ecken, Kreuzungen an denen eine zu lange Wand geteilt wird); dann ist nur der Schlitz nicht durchgehend.
 
 ---
@@ -39,7 +44,7 @@ V3 ist der Nachfolger der beiden MakerWorld-Projekte [V1 – The Drawer Dividers
 
 Am einfachsten **online**: [barry2040.github.io/the-drawer-dividers](https://barry2040.github.io/the-drawer-dividers/). Die Seite wird bei jeder Änderung an `designer/` automatisch neu veröffentlicht.
 
-Oder **offline**: im Online-Designer *Export → Offline-Version herunterladen* (oder hier im Hauptordner [`Drawer-Divider-Designer.html`](Drawer-Divider-Designer.html) öffnen → *Download raw file*, ca. 150 KB). Wichtig: nur diese Datei aus dem Hauptordner läuft allein, nicht die Dateien aus `designer/`. Dann per Doppelklick im Browser öffnen (Chrome, Edge oder Firefox). Die Datei enthält alles, eine Installation ist nicht nötig. Internet brauchst du nur für die 3D-Vorschau und *STLs erzeugen*.
+Oder **offline**: im Online-Designer *Export → Offline-Version herunterladen* (oder hier im Hauptordner [`Drawer-Divider-Designer.html`](Drawer-Divider-Designer.html) öffnen → *Download raw file*, ca. 200 KB). Wichtig: nur diese Datei aus dem Hauptordner läuft allein, nicht die Dateien aus `designer/`. Dann per Doppelklick im Browser öffnen (Chrome, Edge oder Firefox). Die Datei enthält alles, eine Installation ist nicht nötig. Internet brauchst du nur für die 3D-Vorschau und *STLs erzeugen*.
 
 Erlaubt der Browser bei einer lokalen Datei keinen Hintergrund-Prozess (Worker), rechnet *STLs erzeugen* automatisch direkt in der Seite. Das funktioniert genauso, die Seite reagiert währenddessen nur langsamer.
 
@@ -51,7 +56,7 @@ Erlaubt der Browser bei einer lokalen Datei keinen Hintergrund-Prozess (Worker),
 
    | Werkzeug | Taste | So geht's |
    |---|---|---|
-   | Vorlage | – | N × M gleich große Fächer als Start |
+   | Vorlage | – | fertige Aufteilung als Start: Raster (N × M), Besteck, Werkstatt, Gemischt, Schreibtisch, Kleinteile |
    | Teilen | `S` | Anzahl wählen (`2`–`6` oder *frei*), Richtung wählen (`Shift` wechselt), in ein Fach klicken |
    | Zeichnen | `W` | Wand mit der Maus ziehen; Endpunkte rasten am Rand, im Raster und an bestehenden Wänden ein |
    | Auswählen | `V` | Wand anklicken und verschieben, `Entf` löscht sie |
@@ -62,10 +67,16 @@ Erlaubt der Browser bei einer lokalen Datei keinen Hintergrund-Prozess (Worker),
    Mausrad zoomt, rechte oder mittlere Maustaste verschiebt die Ansicht, `F` passt sie ein.
 
 4. **Stückliste prüfen** – rechts stehen alle Teile: Verbinder nach Typ, Wände nach Länge, Schienen und das Filament. Unter *Hinweise* steht, wenn etwas nicht passt.
-5. **STLs erzeugen** – der orange Button oben rechts. OpenSCAD läuft dabei im Browser und rechnet jede Druckplatte direkt aus der SCAD-Bibliothek, Platte für Platte mit Fortschritt. Danach lädst du jede STL einzeln herunter oder alles als **ZIP** (STLs, Stückliste als CSV, Druckjob-`.scad`, Projekt-`.json`).
+5. **STLs erzeugen** – der orange Button oben rechts. OpenSCAD läuft dabei im Browser und rechnet jede Druckplatte direkt aus der SCAD-Bibliothek, Platte für Platte mit Fortschritt. Danach lädst du jede STL einzeln herunter, alles als **3MF** (eine Datei, jede Platte als eigenes Objekt – für Bambu Studio, OrcaSlicer, PrusaSlicer) oder als **ZIP** (STLs, Stückliste als CSV, Druckjob-`.scad`, Projekt-`.json`).
    - Beim ersten Mal wird OpenSCAD geladen (ca. 11 MB von jsDelivr, [openscad-wasm-prebuilt](https://www.npmjs.com/package/openscad-wasm-prebuilt), GPL-2.0), dafür brauchst du Internet.
    - Den Toleranztest rechnest du aus der Druckjob-`.scad` in OpenSCAD, weil er Schrift braucht.
-6. **Drucken** – die Platten in den Slicer ziehen. Jede Platte ist nach Druckbett-Größe aufgeteilt und heißt z.B. `05_10x_Wand_118_mm.stl`.
+6. **Drucken** – die Platten in den Slicer ziehen. Jede Platte ist nach Druckbett-Größe aufgeteilt und heißt z.B. `05_10x_Wand_A_118_mm.stl`.
+
+### Teilen und Aufbauplan
+
+- **Export → Link teilen** kopiert einen Link, in dem das ganze Layout steckt. Wer ihn öffnet, sieht genau deine Schublade (und kann mit *Rückgängig* zu seinem eigenen Layout zurück).
+- **Export → Aufbauplan drucken / PDF** druckt die Zeichnung mit den Wandbuchstaben, die Teileliste und die Aufbauschritte für deinen Randmodus.
+- **DE / EN** oben rechts schaltet die Sprache um.
 
 ### Was der Designer für dich prüft
 
@@ -77,7 +88,7 @@ Erlaubt der Browser bei einer lokalen Datei keinen Hintergrund-Prozess (Worker),
 ### Einstellungen
 
 - **Trenner** – Wanddicke, Toleranz, Höhe, Wand-Muster und Material. Mehr brauchst du meistens nicht.
-- **Erweitert** (eingeklappt) – Druckbett, max. Wandlänge, liegend oder stehend drucken, Griffmulde, Fangraster, alle Verbinder-Maße und die Raster-Schiene. *Alles auf Standard zurücksetzen* stellt die V2-Werte wieder her.
+- **Erweitert** (eingeklappt) – Druckbett, max. Wandlänge, liegend oder stehend drucken, Griffmulde, Fangraster, Beschriftungsclips, Wände beschriften, alle Verbinder-Maße und die Raster-Schiene. *Alles auf Standard zurücksetzen* stellt die V2-Werte wieder her.
 - **Mein Profil** – speichert deine Einstellungen unter einem Namen, z.B. für deinen Drucker mit seiner Toleranz und seinem Druckbett. Bei der nächsten Schublade wählst du das Profil einfach wieder aus. Ein Profil enthält alles außer Schublade, Rand und Fächern und liegt im Browser.
 
 Dein Projekt speichert der Designer automatisch im Browser. Mit *Speichern* / *Öffnen* sicherst du es als `.json`-Datei.
@@ -99,11 +110,11 @@ Dein Projekt speichert der Designer automatisch im Browser. Mit *Speichern* / *�
 
 | Abschnitt | Was |
 |---|---|
-| **Schublade** | Innenbreite, -tiefe, -höhe |
+| **Schublade** | Innenbreite, -tiefe, -höhe, Eckradius |
 | **Fächer** | `Strips = "1,1,2"` teilt die Schublade in Streifen (hier ist der dritte doppelt so breit). `Splits = "2,3,1:2"` legt die Fächer pro Streifen fest: eine Zahl ergibt gleich große Fächer, `1:2` relative Größen. `Direction` bestimmt, ob die Streifen von vorne nach hinten oder von links nach rechts laufen. |
 | **Am Schubladenrand** | Rahmen, Endstücke, Raster-Schienen oder direkt klemmen, optional Aufsteck-Verbinder |
 | **Ausgabe** | *Zusammenbau mit Stückliste* → *Alle Druckteile* → oder *eine Zeile* der Stückliste (`Part_Number`) pro Druckplatte, dann F6 und F7 für die STL |
-| **System** | Wanddicke, Toleranz, Höhe und die Verbinder-Maße |
+| **System** | Wanddicke, Toleranz, Höhe, Wände beschriften, Beschriftungsclips und die Verbinder-Maße |
 
 Er wendet dieselben Regeln an wie der HTML-Designer: den passenden Verbinder an jedem Knoten, exakte Wandlängen, Teilung zu langer Wände, Zusammenrasten fast fluchtender Fachgrenzen, Schienen passend zum Druckbett. Zu enge Fächer werden rot markiert und in der Konsole gemeldet.
 
@@ -127,9 +138,10 @@ translate([0, 60, 0]) dd_rail(200, 40, P);
 
 | Modul / Funktion | Was |
 |---|---|
-| `dd_connector(type, P, slip = false)` | `cross`, `tee`, `corner`, `straight`, `end`, `slip_cross`, `slip_tee`, `slip_corner_r`, `slip_corner_l` |
+| `dd_connector(type, P, slip = false, corner_r = 0)` | `cross`, `tee`, `corner`, `corner_round` (außen gerundet, `corner_r`), `straight`, `end`, `slip_cross`, `slip_tee`, `slip_corner_r`, `slip_corner_l` |
 | `dd_connector_custom(arms, slots, through_y, cap, P)` | beliebige Arm-Kombinationen |
-| `dd_wall(length, P, …)` | Wand mit Waben-/Kreismuster, Griffmulde, Endfasen |
+| `dd_wall(length, P, …, label, label2)` | Wand mit Waben-/Kreismuster, Griffmulde, Endfasen, Gravur in den Wandenden |
+| `dd_label_clip(width, P, …)` | Beschriftungsclip zum Aufstecken auf eine Wand |
 | `dd_rail(length, width, P, …)` | Raster-Schiene mit Zapfen/Buchse, Schraubenlöchern, `teeth_offset` |
 | `dd_tolerance_test(P, tols)` | Testblock mit mehreren Schlitzbreiten plus Testwand |
 | `dd_layout(P, opts)` / `dd_layout_bom(L)` | Fachaufteilung → Wände, Verbinder, Schienen, Stückliste |
@@ -143,20 +155,27 @@ translate([0, 60, 0]) dd_rail(200, 40, P);
 Drawer-Divider-Designer.html  der Designer als eine einzige Datei (wird erzeugt) – zum Herunterladen
 designer/                   HTML-Designer, Quelle
   dev.html                  Oberfläche (Quelle, läuft nur mit den .js-Dateien daneben)
-  app.js                      Planung, Stückliste, Prüfungen, 3D-Vorschau, Druckjob
-  stl.js                      STL-Erzeugung mit OpenSCAD im Browser, ZIP-Download
+  i18n.js                     Sprache: englische Texte, Umschalter DE/EN
+  app.js                      Planung, Stückliste, Prüfungen, 3D-Vorschau, Aufbauplan, Druckjob
+  stl.js                      STL-Erzeugung mit OpenSCAD im Browser, ZIP- und 3MF-Download
   scad_lib.js                 eingebettete SCAD-Bibliothek (wird erzeugt)
 scad/
   drawer_designer.scad      SCAD-Designer
   connector.scad            Einzelteile: Verbinder
   wall.scad                 Einzelteile: Wände
   rail.scad                 Einzelteile: Raster-Schiene
+  label_clip.scad           Einzelteile: Beschriftungsclip
   tolerance_test.scad       Toleranztest
   lib/drawer_divider.scad   Bibliothek – alle Geometrie und die Layout-Logik
 dist/makerworld/en/ de/     Einzeldateien für MakerWorld (Bibliothek eingebettet, werden erzeugt)
 legacy/v2-original/         Original-SCADs von V2
-tools/                      Build-Skript und deutsche Übersetzung
+tools/
+  build.py                  erzeugt alle generierten Dateien
+  i18n_de.py                deutsche Customizer-Namen für MakerWorld
+  check.py                  Prüfungen (läuft in GitHub Actions)
+  i18n_keys.py              findet Designer-Texte ohne englische Übersetzung
 .github/workflows/pages.yml veröffentlicht Drawer-Divider-Designer.html auf GitHub Pages
+.github/workflows/check.yml Prüfung bei jedem Push
 ```
 
 ## Was gegenüber V2 verbessert ist
@@ -180,5 +199,7 @@ Nach Änderungen in `scad/` oder `designer/` die erzeugten Dateien neu bauen (Ma
 python tools/build.py
 ```
 
+- `python tools/check.py` rendert alle SCAD-Dateien, vergleicht für mehrere Layouts die Teile von HTML- und SCAD-Designer und prüft, dass jeder Designer-Text eine englische Übersetzung hat. Das läuft bei jedem Push automatisch in GitHub Actions (*Prüfung*), zusammen mit der Kontrolle, dass die erzeugten Dateien aktuell sind. Braucht OpenSCAD und Playwright (`pip install playwright && playwright install chromium`).
+- Neue Texte im Designer schreibst du als `T('…')` bzw. ``T`… ${x} …` `` und trägst die Übersetzung in `designer/i18n.js` ein.
 - Getestet mit OpenSCAD 2021.01. Neuere Versionen (Manifold) rendern deutlich schneller.
 - Die Formeln für Wandlängen und Abstände stehen zweimal: in `scad/lib/drawer_divider.scad` und in `designer/app.js` (`geom()`, `analyze()`). Wer eine davon ändert, muss die andere mitziehen.

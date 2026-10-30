@@ -224,6 +224,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
   </div>
   <input id="projName" value="Meine Schublade" title="Projektname">
   <div class="spacer"></div>
+  <button class="btn" id="btnLang" title="Sprache / Language">EN</button>
   <button class="btn" id="btnNew" title="Neues Projekt">Neu</button>
   <button class="btn" id="btnOpen" title="Projekt öffnen (.json)">Öffnen</button>
   <button class="btn" id="btnSave" title="Projekt speichern (.json)">Speichern</button>
@@ -431,14 +432,19 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
   <div class="actions"><button class="btn" id="askNo">Abbrechen</button><button class="btn primary" id="askOk">OK</button></div>
 </dialog>
 
+<script src="i18n.js"></script>
 <script src="scad_lib.js"></script>
 <script src="app.js"></script>
 <script src="stl.js"></script>
 <script>
   // opened on its own without the .js files next to it: say which file to use instead
   if (typeof analyze !== 'function') document.body.innerHTML = '<div style="max-width:560px;margin:15vh auto;padding:24px;font:15px system-ui;line-height:1.5">'
-    + '<h2>Das ist nur die Quelldatei</h2><p>Sie funktioniert nur zusammen mit den .js-Dateien im Ordner <code>designer/</code>.</p>'
-    + '<p>Zum Benutzen: <a href="https://barry2040.github.io/the-drawer-dividers/">Designer online öffnen</a> – dort unter <b>Export → Offline-Version herunterladen</b> bekommst du die komplette Datei <code>Drawer-Divider-Designer.html</code>.</p></div>';
+    + (/^de/.test(navigator.language)
+      ? '<h2>Das ist nur die Quelldatei</h2><p>Sie funktioniert nur zusammen mit den .js-Dateien im Ordner <code>designer/</code>.</p>'
+        + '<p>Zum Benutzen: <a href="https://barry2040.github.io/the-drawer-dividers/">Designer online öffnen</a> – dort unter <b>Export → Offline-Version herunterladen</b> bekommst du die komplette Datei <code>Drawer-Divider-Designer.html</code>.</p>'
+      : '<h2>This is only the source file</h2><p>It only works together with the .js files in the <code>designer/</code> folder.</p>'
+        + '<p>To use it: <a href="https://barry2040.github.io/the-drawer-dividers/">open the designer online</a> – there, <b>Export → Download offline version</b> gives you the complete file <code>Drawer-Divider-Designer.html</code>.</p>')
+    + '</div>';
 </script>
 </body>
 </html>

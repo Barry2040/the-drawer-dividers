@@ -4,6 +4,7 @@
   1. every .scad file (sources and MakerWorld builds) renders without warnings
   2. the HTML designer and the SCAD library compute the same parts for the same
      layout (wall lengths and connector types) – the formulas exist twice
+  3. every text of the designer has an English translation (tools/i18n_keys.py)
 
 Needs OpenSCAD (set OPENSCAD=path if it is not on PATH) and, for step 2,
 Playwright with Chromium:  pip install playwright && playwright install chromium
@@ -137,6 +138,9 @@ def check_designer():
 
 
 if __name__ == "__main__":
+    sys.path.insert(0, str(ROOT / "tools"))
+    import i18n_keys
     a = check_files()
     b = check_designer()
-    sys.exit(0 if a and b else 1)
+    c = i18n_keys.main()
+    sys.exit(0 if a and b and c else 1)

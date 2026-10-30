@@ -7,7 +7,7 @@ const $$ = s => [...document.querySelectorAll(s)];
 const EPS = 0.01;
 const r2 = v => Math.round(v * 100) / 100;
 const near = (a, b) => Math.abs(a - b) < EPS;
-const fmt = (v, d = 1) => Number(v).toLocaleString('de-DE', { maximumFractionDigits: d });
+const fmt = (v, d = 1) => Number(v).toLocaleString(LANG === 'en' ? 'en-US' : 'de-DE', { maximumFractionDigits: d });
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const STORE_KEY = 'dd-designer-v3';
@@ -22,20 +22,20 @@ const PROFILES_KEY = 'dd-designer-profiles';
 const PER_DRAWER = ['border', 'slip'];     // settings that belong to the drawer design, not to a profile
 
 const TYPES = {
-  cross:      { name: 'Kreuz', desc: '4 Wände treffen sich' },
-  tee:        { name: 'T-Stück', desc: '3 Wände' },
-  corner:     { name: 'Ecke', desc: '2 Wände im 90°-Winkel' },
-  corner_round: { name: 'Rahmenecke gerundet', desc: 'Außen gerundet für die Schubladenecke' },
-  straight:   { name: 'Gerade', desc: 'Verlängert eine geteilte Wand' },
-  end:        { name: 'Endstück', desc: 'Freies Wandende / am Rand' },
-  slip_cross: { name: 'Aufsteck-Kreuz durchgehend', desc: 'Auf durchgehende Wand gesteckt' },
-  slip_tee:   { name: 'Aufsteck-T durchgehend', desc: 'Auf durchgehende Wand gesteckt' },
+  cross:      { name: T('Kreuz'), desc: T('4 Wände treffen sich') },
+  tee:        { name: T('T-Stück'), desc: T('3 Wände') },
+  corner:     { name: T('Ecke'), desc: T('2 Wände im 90°-Winkel') },
+  corner_round: { name: T('Rahmenecke gerundet'), desc: T('Außen gerundet für die Schubladenecke') },
+  straight:   { name: T('Gerade'), desc: T('Verlängert eine geteilte Wand') },
+  end:        { name: T('Endstück'), desc: T('Freies Wandende / am Rand') },
+  slip_cross: { name: T('Aufsteck-Kreuz durchgehend'), desc: T('Auf durchgehende Wand gesteckt') },
+  slip_tee:   { name: T('Aufsteck-T durchgehend'), desc: T('Auf durchgehende Wand gesteckt') },
 };
 // With slip-on connectors every connector of the drawer carries the cap and is
 // pushed on from above, also where the walls end instead of running through.
 const cappedSet = t => S.settings.slip && !t.startsWith('slip');
-const typeName = t => (cappedSet(t) ? 'Aufsteck-' : '') + TYPES[t].name;
-const typeDesc = t => TYPES[t].desc + (cappedSet(t) ? ', Wände enden darin' : '');
+const typeName = t => (cappedSet(t) ? T('Aufsteck-') : '') + TYPES[t].name;
+const typeDesc = t => TYPES[t].desc + (cappedSet(t) ? T(', Wände enden darin') : '');
 const TYPE_ORDER = Object.keys(TYPES);
 
 function defaultSettings() {
@@ -44,7 +44,7 @@ function defaultSettings() {
            railPlate: 2.5, toothT: 2, toothH: 6 };
 }
 function defaultState() {
-  return { version: 3, name: 'Meine Schublade', drawer: { w: 400, d: 300, h: 60, r: 0 },
+  return { version: 3, name: T('Meine Schublade'), drawer: { w: 400, d: 300, h: 60, r: 0 },
            preset: '', profile: { ...DEFAULT_PROFILE }, settings: defaultSettings(), walls: [] };
 }
 
@@ -234,7 +234,7 @@ function analyze(S) {
           s = jc + g.inset;
         }
       }
-      if (k > 1) msgs.push({ lvl: 'info', text: `Eine ${fmt(total, 0)} mm lange Wand ist länger als ${fmt(st.maxLen, 0)} mm – in ${k} Teile mit Verlängerung geteilt.` });
+      if (k > 1) msgs.push({ lvl: 'info', text: T`Eine ${fmt(total, 0)} mm lange Wand ist länger als ${fmt(st.maxLen, 0)} mm – in ${k} Teile mit Verlängerung geteilt.` });
     }
   }
   for (const j of joints) { j.kind = 'conn'; j.type = 'straight'; j.joint = true; nodes.set('j' + j.x + ',' + j.y, j); }
@@ -246,8 +246,8 @@ function analyze(S) {
     if (pc.len <= 0) { pc.bad = true; negative++; }
     else if (pc.len < (pc.edge ? minEdgeLen : minLen)) { pc.bad = true; tooShort++; }
   }
-  if (negative) msgs.push({ lvl: 'err', text: `${negative} Wandstück(e) passen nicht – Verbinder liegen zu dicht beieinander (mind. ${fmt(minConnGap(g, p), 0)} mm Abstand).` });
-  if (tooShort) msgs.push({ lvl: 'warn', text: `${tooShort} zu kurze Wandstück(e) – rot markiert.` });
+  if (negative) msgs.push({ lvl: 'err', text: T`${negative} Wandstück(e) passen nicht – Verbinder liegen zu dicht beieinander (mind. ${fmt(minConnGap(g, p), 0)} mm Abstand).` });
+  if (tooShort) msgs.push({ lvl: 'warn', text: T`${tooShort} zu kurze Wandstück(e) – rot markiert.` });
 
   // connector bodies on the same line must not overlap: each reaches one arm length
   // towards the neighbour where it has an arm, half its width where it has none
@@ -266,7 +266,7 @@ function analyze(S) {
       }
     }
   }
-  if (collisions) msgs.push({ lvl: 'err', text: `${collisions}× überschneiden sich Verbinder – Wände auf einer Linie brauchen mind. ${fmt(minConnGap(g, p), 0)} mm Abstand (rot markiert).` });
+  if (collisions) msgs.push({ lvl: 'err', text: T`${collisions}× überschneiden sich Verbinder – Wände auf einer Linie brauchen mind. ${fmt(minConnGap(g, p), 0)} mm Abstand (rot markiert).` });
 
   // rails
   const rails = [];
@@ -278,7 +278,7 @@ function analyze(S) {
       if (!sl[axis].slots.some(c => Math.abs(c - v) < 0.05)) { n.offGrid = true; }
     }
     const off = [...nodes.values()].filter(n => n.offGrid).length;
-    if (off) msgs.push({ lvl: 'warn', text: `${off} Wandende(n) treffen keinen Schlitz der Schiene – mit „Auswählen" leicht verschieben.` });
+    if (off) msgs.push({ lvl: 'warn', text: T`${off} Wandende(n) treffen keinen Schlitz der Schiene – mit „Auswählen" leicht verschieben.` });
     const rw = Math.min(g.wallH, S.drawer.h);
     for (const side of ['L', 'R', 'T', 'B']) if (used.has(side)) {
       const axis = side === 'L' || side === 'R' ? 'y' : 'x';
@@ -298,12 +298,12 @@ function analyze(S) {
   const comps = findCompartments(S, g, H, V);
 
   // checks
-  if (p.height > S.drawer.h) msgs.push({ lvl: 'err', text: `Verbinder sind ${fmt(p.height)} mm hoch, die Schublade nur ${fmt(S.drawer.h)} mm.` });
-  else if (p.height > S.drawer.h - 3) msgs.push({ lvl: 'warn', text: `Nur ${fmt(S.drawer.h - p.height)} mm Luft über den Trennern – die Schublade könnte hängen bleiben.` });
+  if (p.height > S.drawer.h) msgs.push({ lvl: 'err', text: T`Verbinder sind ${fmt(p.height)} mm hoch, die Schublade nur ${fmt(S.drawer.h)} mm.` });
+  else if (p.height > S.drawer.h - 3) msgs.push({ lvl: 'warn', text: T`Nur ${fmt(S.drawer.h - p.height)} mm Luft über den Trennern – die Schublade könnte hängen bleiben.` });
   const longest = Math.max(0, ...pieces.map(x => x.len), ...rails.map(r => r.len));
-  if (S.settings.orient === 'flat' && longest > st.bed - 10) msgs.push({ lvl: 'warn', text: `Längstes Teil (${fmt(longest, 0)} mm) passt kaum aufs ${fmt(st.bed, 0)}-mm-Druckbett.` });
-  if (g.cornerWant > g.cornerMax + EPS) msgs.push({ lvl: 'warn', text: `Eckradius zu groß: Die Rahmenecken lassen sich nur bis ${fmt(g.cornerMax)} mm runden, sonst würden die Schlitze angeschnitten. Mehr Abstand zum Rand oder Endstücke helfen.` });
-  if (st.slip && p.cap === 0) msgs.push({ lvl: 'info', text: `Aufsteck-Modus: Alle Wände sind ${fmt(p.floor_t)} mm niedriger, damit die Aufsteck-Verbinder bündig sitzen.` });
+  if (S.settings.orient === 'flat' && longest > st.bed - 10) msgs.push({ lvl: 'warn', text: T`Längstes Teil (${fmt(longest, 0)} mm) passt kaum aufs ${fmt(st.bed, 0)}-mm-Druckbett.` });
+  if (g.cornerWant > g.cornerMax + EPS) msgs.push({ lvl: 'warn', text: T`Eckradius zu groß: Die Rahmenecken lassen sich nur bis ${fmt(g.cornerMax)} mm runden, sonst würden die Schlitze angeschnitten. Mehr Abstand zum Rand oder Endstücke helfen.` });
+  if (st.slip && p.cap === 0) msgs.push({ lvl: 'info', text: T`Aufsteck-Modus: Alle Wände sind ${fmt(p.floor_t)} mm niedriger, damit die Aufsteck-Verbinder bündig sitzen.` });
 
   const bom = buildBom(S, g, nodes, pieces, rails, comps.list.length);
   const conflicts = pieces.filter(pc => pc.bad).length + collisions;
@@ -609,7 +609,7 @@ function wallGapCheck(w, skipC = null) {
 // Runs the full analysis on the changed layout, so every rule of the system applies.
 const badPieces = St => analyze(St).conflicts;
 const breaksLayout = walls => badPieces({ ...S, walls }) > A.conflicts;
-const TOO_CLOSE = () => `Geht nicht – Verbinder würden sich überschneiden (mind. ${fmt(minConnGap(A.g, S.profile), 0)} mm Wandabstand).`;
+const TOO_CLOSE = () => T`Geht nicht – Verbinder würden sich überschneiden (mind. ${fmt(minConnGap(A.g, S.profile), 0)} mm Wandabstand).`;
 
 // ---------------------------------------------------------------------------
 // Rendering: SVG
@@ -670,7 +670,7 @@ function drawSVG() {
     for (let y = 50; y < D; y += 50) gp += `<line class="g-major" x1="0" y1="${y}" x2="${W}" y2="${y}"/>`;
   }
   out.push(gp);
-  out.push(`<text class="edge-label" x="${W / 2}" y="${D + dw + 16 / s}" style="font-size:${11 / s}px">Vorne</text>`);
+  out.push(`<text class="edge-label" x="${W / 2}" y="${D + dw + 16 / s}" style="font-size:${11 / s}px">${T('Vorne')}</text>`);
 
   // compartments
   A.comps.list.forEach((R, i) => {
@@ -787,74 +787,74 @@ function drawPanels() {
   $('#tParts').textContent = b.parts;
   $('#tComp').textContent = A.comps.list.length;
   $('#tGrams').textContent = fmt(b.grams, 0);
-  $('#bomCount').textContent = b.parts ? `${b.parts} Teile` : '';
+  $('#bomCount').textContent = b.parts ? T`${b.parts} Teile` : '';
 
   let h = '';
   const item = (ico, name, sub, qty, grams) =>
     `<div class="bom-item"><div class="bom-ico">${ico}</div><div><div class="bom-name">${name}</div><div class="bom-sub">${sub}</div></div><div class="bom-qty">${qty}<small>×</small></div></div>`;
   if (b.connectors.length) {
-    h += `<div class="bom-group"><h4><span>Verbinder · ${fmt(S.profile.height)} mm hoch</span><span>${b.connectors.reduce((s, c) => s + c.qty, 0)}</span></h4>`;
-    for (const c of b.connectors) h += item(iconSvg('conn', c.type), typeName(c.type), `${typeDesc(c.type)} · ca. ${fmt(c.g)} g`, c.qty);
+    h += `<div class="bom-group"><h4><span>${T`Verbinder · ${fmt(S.profile.height)} mm hoch`}</span><span>${b.connectors.reduce((s, c) => s + c.qty, 0)}</span></h4>`;
+    for (const c of b.connectors) h += item(iconSvg('conn', c.type), typeName(c.type), T`${typeDesc(c.type)} · ca. ${fmt(c.g)} g`, c.qty);
     h += '</div>';
   }
   if (b.walls.length) {
-    h += `<div class="bom-group"><h4><span>Wände · ${fmt(g.t)} × ${fmt(g.wallH)} mm</span><span>${b.walls.reduce((s, c) => s + c.qty, 0)}</span></h4>`;
-    for (const w of b.walls) h += item(wallBadge(w.id), `${fmt(w.len)} mm`, `Höhe ${fmt(w.h)} mm · ca. ${fmt(w.g)} g`, w.qty);
+    h += `<div class="bom-group"><h4><span>${T`Wände · ${fmt(g.t)} × ${fmt(g.wallH)} mm`}</span><span>${b.walls.reduce((s, c) => s + c.qty, 0)}</span></h4>`;
+    for (const w of b.walls) h += item(wallBadge(w.id), `${fmt(w.len)} mm`, T`Höhe ${fmt(w.h)} mm · ca. ${fmt(w.g)} g`, w.qty);
     h += '</div>';
   }
   if (b.extras.length) {
-    h += `<div class="bom-group"><h4><span>Zubehör</span><span>${b.extras.reduce((s, c) => s + c.qty, 0)}</span></h4>`;
-    for (const x of b.extras) h += item(iconSvg('clip'), 'Beschriftungsclip', `Wird oben auf eine Wand gesteckt · ca. ${fmt(x.g)} g`, x.qty);
+    h += `<div class="bom-group"><h4><span>${T('Zubehör')}</span><span>${b.extras.reduce((s, c) => s + c.qty, 0)}</span></h4>`;
+    for (const x of b.extras) h += item(iconSvg('clip'), T('Beschriftungsclip'), T`Wird oben auf eine Wand gesteckt · ca. ${fmt(x.g)} g`, x.qty);
     h += '</div>';
   }
   if (b.rails.length) {
-    h += `<div class="bom-group"><h4><span>Raster-Schienen</span><span>${b.rails.reduce((s, c) => s + c.qty, 0)}</span></h4>`;
-    for (const r of b.rails) h += item(iconSvg('rail'), `${fmt(r.len)} mm`, `Breite ${fmt(r.width)} · Versatz ${fmt(r.offset, 2)}${r.tongue ? ' · Zapfen' : ''}${r.socket ? ' · Buchse' : ''}`, r.qty);
+    h += `<div class="bom-group"><h4><span>${T('Raster-Schienen')}</span><span>${b.rails.reduce((s, c) => s + c.qty, 0)}</span></h4>`;
+    for (const r of b.rails) h += item(iconSvg('rail'), `${fmt(r.len)} mm`, T`Breite ${fmt(r.width)} · Versatz ${fmt(r.offset, 2)}` + (r.tongue ? T(' · Zapfen') : '') + (r.socket ? T(' · Buchse') : ''), r.qty);
     h += '</div>';
   }
-  $('#bom').innerHTML = h || '<div class="empty">Noch keine Teile – zeichne Wände in die Schublade.</div>';
+  $('#bom').innerHTML = h || `<div class="empty">${T('Noch keine Teile – zeichne Wände in die Schublade.')}</div>`;
 
   const icon = { err: '⛔', warn: '⚠️', info: 'ℹ️' };
   const seen = new Set();
   const msgs = A.msgs.filter(m => !seen.has(m.text) && seen.add(m.text));
   $('#msgs').innerHTML = msgs.length ? msgs.map(m => `<div class="msg ${m.lvl}"><span>${icon[m.lvl]}</span><span>${esc(m.text)}</span></div>`).join('')
-                                     : '<div class="msg info"><span>✓</span><span>Alles passt.</span></div>';
+                                     : '<div class="msg info"><span>✓</span><span>' + T('Alles passt.') + '</span></div>';
 
   const sec = $('#selSec');
   if (ui.sel !== null && S.walls[ui.sel]) {
     const w = S.walls[ui.sel];
     const parts = A.pieces.filter(pc => pc.o === w.o && near(pc.c, w.c) && pc.s < w.b && pc.e > w.a);
     sec.hidden = false;
-    $('#selInfo').innerHTML = `<dl><dt>Richtung</dt><dd>${w.o === 'h' ? 'waagerecht' : 'senkrecht'}</dd>
-      <dt>Position</dt><dd>${w.o === 'h' ? 'Y' : 'X'} = ${fmt(w.c)} mm</dd>
-      <dt>Mittellinie</dt><dd>${fmt(w.b - w.a)} mm</dd>
-      <dt>Druckteile</dt><dd>${parts.map(pc => fmt(pc.len) + ' mm').join(', ') || '–'}</dd></dl>
-      <p class="hint">Ziehen zum Verschieben · Entf zum Löschen</p>`;
+    $('#selInfo').innerHTML = `<dl><dt>${T('Richtung')}</dt><dd>${w.o === 'h' ? T('waagerecht') : T('senkrecht')}</dd>
+      <dt>${T('Position')}</dt><dd>${w.o === 'h' ? 'Y' : 'X'} = ${fmt(w.c)} mm</dd>
+      <dt>${T('Mittellinie')}</dt><dd>${fmt(w.b - w.a)} mm</dd>
+      <dt>${T('Druckteile')}</dt><dd>${parts.map(pc => fmt(pc.len) + ' mm').join(', ') || '–'}</dd></dl>
+      <p class="hint">${T('Ziehen zum Verschieben · Entf zum Löschen')}</p>`;
   } else sec.hidden = true;
 }
 
 // Printed assembly plan: parts by letter and the steps for this edge mode.
 function drawPlan() {
   const b = A.bom, st = S.settings;
-  const edge = { frame: 'Rahmen', endcap: 'Endstücke', rail: 'Raster-Schienen', none: 'direkt geklemmt' }[st.border];
+  const edge = { frame: T('Rahmen'), endcap: T('Endstücke'), rail: T('Raster-Schienen'), none: T('direkt geklemmt') }[st.border];
   const steps = [];
-  steps.push(`Alle Teile drucken (${b.parts} Teile, ca. ${fmt(b.grams, 0)} g).` + (st.labels ? ' In jedes Wandende ist sein Buchstabe und seine Länge graviert.' : ''));
-  if (st.border === 'rail') steps.push('Raster-Schienen an die Schubladenseiten kleben oder schrauben – zusammengesetzte Schienen mit Zapfen in die Buchse stecken.');
-  if (st.border === 'frame') steps.push('Mit dem Rahmen beginnen: Ecken, T-Stücke und die Außenwände zu einem Rechteck zusammenstecken.');
-  if (b.connectors.some(c => c.type === 'straight')) steps.push('Geteilte lange Wände mit den geraden Verlängerungen verbinden.');
+  steps.push(T`Alle Teile drucken (${b.parts} Teile, ca. ${fmt(b.grams, 0)} g).` + (st.labels ? T(' In jedes Wandende ist sein Buchstabe und seine Länge graviert.') : ''));
+  if (st.border === 'rail') steps.push(T('Raster-Schienen an die Schubladenseiten kleben oder schrauben – zusammengesetzte Schienen mit Zapfen in die Buchse stecken.'));
+  if (st.border === 'frame') steps.push(T('Mit dem Rahmen beginnen: Ecken, T-Stücke und die Außenwände zu einem Rechteck zusammenstecken.'));
+  if (b.connectors.some(c => c.type === 'straight')) steps.push(T('Geteilte lange Wände mit den geraden Verlängerungen verbinden.'));
   steps.push(st.slip
-    ? 'Die durchgehenden Wände aufstellen, die kurzen Wände dazwischen stellen und dann die Verbinder von oben aufstecken.'
-    : 'Innenwände nach dem Plan einsetzen – die Buchstaben im Plan zeigen, welche Wand wohin gehört. Von einer Seite zur anderen arbeiten, jeweils Wand in den Verbinder schieben.');
-  if (st.border === 'endcap') steps.push('Die Endstücke sitzen an der Schubladenwand – das Ganze am Stück in die Schublade setzen.');
-  else if (st.border !== 'rail') steps.push('Das fertige Gitter in die Schublade setzen.');
-  if (b.extras.length) steps.push('Beschriftungsclips beschriften und oben auf die Wände der Fächer stecken.');
+    ? T('Die durchgehenden Wände aufstellen, die kurzen Wände dazwischen stellen und dann die Verbinder von oben aufstecken.')
+    : T('Innenwände nach dem Plan einsetzen – die Buchstaben im Plan zeigen, welche Wand wohin gehört. Von einer Seite zur anderen arbeiten, jeweils Wand in den Verbinder schieben.'));
+  if (st.border === 'endcap') steps.push(T('Die Endstücke sitzen an der Schubladenwand – das Ganze am Stück in die Schublade setzen.'));
+  else if (st.border !== 'rail') steps.push(T('Das fertige Gitter in die Schublade setzen.'));
+  if (b.extras.length) steps.push(T('Beschriftungsclips beschriften und oben auf die Wände der Fächer stecken.'));
   $('#plan').innerHTML = `<h4>${esc(S.name)}</h4>
-    <div class="hint">Schublade ${S.drawer.w} × ${S.drawer.d} × ${S.drawer.h} mm · Rand: ${edge}${st.slip ? ' · Aufsteck-Verbinder' : ''} · Wände ${fmt(A.g.t)} × ${fmt(A.g.wallH)} mm</div>
-    <table><tr><th>Teil</th><th>Maß</th><th>Anzahl</th></tr>
-      ${b.walls.map(w => `<tr><td><b>Wand ${w.id}</b></td><td>${fmt(w.len)} mm</td><td>${w.qty}×</td></tr>`).join('')}
-      ${b.connectors.map(c => `<tr><td>${typeName(c.type)}</td><td>${fmt(S.profile.height)} mm hoch</td><td>${c.qty}×</td></tr>`).join('')}
-      ${b.rails.map(r => `<tr><td>Schiene</td><td>${fmt(r.len)} mm</td><td>${r.qty}×</td></tr>`).join('')}
-      ${b.extras.map(x => `<tr><td>Beschriftungsclip</td><td>40 mm breit</td><td>${x.qty}×</td></tr>`).join('')}
+    <div class="hint">${T`Schublade ${S.drawer.w} × ${S.drawer.d} × ${S.drawer.h} mm · Rand: ${edge}`}${st.slip ? T(' · Aufsteck-Verbinder') : ''} · ${T`Wände ${fmt(A.g.t)} × ${fmt(A.g.wallH)} mm`}</div>
+    <table><tr><th>${T('Teil')}</th><th>${T('Maß')}</th><th>${T('Anzahl')}</th></tr>
+      ${b.walls.map(w => `<tr><td><b>${T`Wand ${w.id}`}</b></td><td>${fmt(w.len)} mm</td><td>${w.qty}×</td></tr>`).join('')}
+      ${b.connectors.map(c => `<tr><td>${typeName(c.type)}</td><td>${T`${fmt(S.profile.height)} mm hoch`}</td><td>${c.qty}×</td></tr>`).join('')}
+      ${b.rails.map(r => `<tr><td>${T('Schiene')}</td><td>${fmt(r.len)} mm</td><td>${r.qty}×</td></tr>`).join('')}
+      ${b.extras.map(x => `<tr><td>${T('Beschriftungsclip')}</td><td>${T('40 mm breit')}</td><td>${x.qty}×</td></tr>`).join('')}
     </table>
     <ol>${steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>`;
 }
@@ -964,15 +964,15 @@ for (const el of $$('[data-k]')) {
 }
 // Profiles: everything except drawer, edge mode and walls, kept in this browser
 function loadProfiles() { try { return JSON.parse(localStorage.getItem(PROFILES_KEY)) || {}; } catch { return {}; } }
-function storeProfiles(all) { try { localStorage.setItem(PROFILES_KEY, JSON.stringify(all)); } catch { flash('Profile können in diesem Browser nicht gespeichert werden.'); } }
+function storeProfiles(all) { try { localStorage.setItem(PROFILES_KEY, JSON.stringify(all)); } catch { flash(T('Profile können in diesem Browser nicht gespeichert werden.')); } }
 function fillProfiles() {
   const all = loadProfiles(), names = Object.keys(all).sort((a, b) => a.localeCompare(b, 'de'));
-  $('#profSel').innerHTML = '<option value="">Standard</option>' + names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  $('#profSel').innerHTML = `<option value="">${T('Standard')}</option>` + names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
   $('#profSel').value = all[S.preset] ? S.preset : '';
   $('#profDel').disabled = !all[S.preset];
 }
 function applyProfile(name, src) {
-  if (!src) { flash('Profil nicht gefunden.'); fillProfiles(); return; }
+  if (!src) { flash(T('Profil nicht gefunden.')); fillProfiles(); return; }
   mutate(() => {
     const g0 = geom(S), keep = Object.fromEntries(PER_DRAWER.map(k => [k, S.settings[k]]));
     S.profile = { ...DEFAULT_PROFILE, ...src.profile };
@@ -989,23 +989,23 @@ $('#profSel').addEventListener('change', e => {
 });
 $('#profReset').addEventListener('click', () => applyProfile('', { profile: DEFAULT_PROFILE, settings: defaultSettings() }));
 $('#profSave').addEventListener('click', async () => {
-  const name = await ask('Profil speichern', { text: 'Name für das Profil, z.B. dein Drucker:', input: S.preset || 'Mein Drucker', ok: 'Speichern' });
+  const name = await ask(T('Profil speichern'), { text: T('Name für das Profil, z.B. dein Drucker:'), input: S.preset || T('Mein Drucker'), ok: T('Speichern') });
   if (!name) return;
   const all = loadProfiles(), settings = { ...S.settings };
   for (const k of PER_DRAWER) delete settings[k];
   all[name] = { profile: { ...S.profile }, settings };
   storeProfiles(all);
   S.preset = name; persist(); fillProfiles();
-  flash(`Profil „${name}“ gespeichert.`);
+  flash(T`Profil „${name}“ gespeichert.`);
 });
 $('#profDel').addEventListener('click', async () => {
   const all = loadProfiles();
-  if (!all[S.preset] || !await ask(`Profil „${S.preset}“ löschen?`, { ok: 'Löschen' })) return;
+  if (!all[S.preset] || !await ask(T`Profil „${S.preset}“ löschen?`, { ok: T('Löschen') })) return;
   delete all[S.preset]; storeProfiles(all);
   S.preset = ''; persist(); fillProfiles();
 });
 for (const r of $$('input[name=border]')) r.addEventListener('change', () => mutate(() => setWithRemap('settings.border', r.value)));
-$('#projName').addEventListener('change', e => mutate(() => { S.name = e.target.value.trim() || 'Schublade'; }));
+$('#projName').addEventListener('change', e => mutate(() => { S.name = e.target.value.trim() || T('Schublade'); }));
 
 // ---------------------------------------------------------------------------
 // Tools & pointer interaction
@@ -1016,10 +1016,10 @@ function setTool(t) {
   for (const b of $$('.tool[data-tool]')) b.classList.toggle('on', b.dataset.tool === t);
   svg.setAttribute('class', 't-' + t);
   $('#splitBar').classList.toggle('show', t === 'split');
-  const hints = { draw: 'Klicken & ziehen, um eine Wand zu zeichnen. Endpunkte rasten an Rand, Raster und bestehenden Wänden ein.',
-                  split: 'In ein Fach klicken, um es zu teilen. Zahl 1–6 = Anzahl Fächer, Shift = Richtung.',
-                  select: 'Wand anklicken zum Auswählen, ziehen zum Verschieben.',
-                  erase: 'Wandstück zwischen zwei Verbindern anklicken, um es zu entfernen.' };
+  const hints = { draw: T('Klicken & ziehen, um eine Wand zu zeichnen. Endpunkte rasten an Rand, Raster und bestehenden Wänden ein.'),
+                  split: T('In ein Fach klicken, um es zu teilen. Zahl 1–6 = Anzahl Fächer, Shift = Richtung.'),
+                  select: T('Wand anklicken zum Auswählen, ziehen zum Verschieben.'),
+                  erase: T('Wandstück zwischen zwei Verbindern anklicken, um es zu entfernen.') };
   $('#shint').textContent = hints[t];
   render();
 }
@@ -1117,12 +1117,12 @@ svg.addEventListener('pointerdown', e => {
   } else if (ui.tool === 'erase') {
     const iv = hitLineInterval(m);
     if (!iv) return;
-    if (iv.frame) { flash('Der Rahmen gehört zum Randmodus „Rahmen" – ändere links den Rand, um ihn zu entfernen.'); return; }
+    if (iv.frame) { flash(T('Der Rahmen gehört zum Randmodus „Rahmen" – ändere links den Rand, um ihn zu entfernen.')); return; }
     mutate(() => eraseInterval(iv));
   } else if (ui.tool === 'split') {
     computeSplit(m);
     if (ui.splitPreview && ui.splitPreview.length) {
-      if (ui.splitBad) { flash(TOO_CLOSE() + ' Weniger Fächer wählen.'); return; }
+      if (ui.splitBad) { flash(TOO_CLOSE() + T(' Weniger Fächer wählen.')); return; }
       const add = ui.splitPreview; mutate(() => S.walls.push(...add)); computeSplit(m); drawSVG();
     }
   }
@@ -1145,7 +1145,7 @@ svg.addEventListener('pointermove', e => {
   } else if (ui.tool === 'erase') ui.eraseHL = hitLineInterval(m);
   else if (ui.tool === 'split') computeSplit(m);
   const n = !d && hitNode(m);
-  showTip(e, n ? `${typeName(n.type)}${n.joint ? ' (Verlängerung)' : ''}` : null);
+  showTip(e, n ? `${typeName(n.type)}${n.joint ? T(' (Verlängerung)') : ''}` : null);
   drawSVG();
 });
 svg.addEventListener('pointerup', e => {
@@ -1157,10 +1157,10 @@ svg.addEventListener('pointerup', e => {
     const chk = w.b - w.a >= 2 ? wallGapCheck(w) : null;
     if (chk && chk.c !== null && breaksLayout(S.walls.concat({ ...w, c: chk.c }))) { flash(TOO_CLOSE()); drawSVG(); }
     else if (chk && chk.c !== null) mutate(() => S.walls.push({ ...w, c: chk.c }));
-    else { if (chk) flash(`Zu nah an der Nachbarwand oder am Rand – mindestens ${fmt(chk.minGap, 0)} mm Abstand, sonst passen die Verbinder nicht.`); drawSVG(); }
+    else { if (chk) flash(T`Zu nah an der Nachbarwand oder am Rand – mindestens ${fmt(chk.minGap, 0)} mm Abstand, sonst passen die Verbinder nicht.`); drawSVG(); }
   } else if (d.type === 'move') {
     const w = S.walls[d.idx], chk = wallGapCheck({ o: w.o, c: w.c, a: Math.min(w.a, w.b), b: Math.max(w.a, w.b) }, w.c);
-    if (chk.c === null) { w.c = d.c0; flash(`Zu nah an der Nachbarwand oder am Rand – mindestens ${fmt(chk.minGap, 0)} mm Abstand.`); render(); }
+    if (chk.c === null) { w.c = d.c0; flash(T`Zu nah an der Nachbarwand oder am Rand – mindestens ${fmt(chk.minGap, 0)} mm Abstand.`); render(); }
     else if (chk.c !== w.c) { w.c = chk.c; render(); }
     if (w.c !== d.c0 && badPieces(S) > badPieces(JSON.parse(d.before))) { w.c = d.c0; flash(TOO_CLOSE()); render(); }
     commit(d.before);
@@ -1241,7 +1241,7 @@ $('#btnUndo').addEventListener('click', undo);
 $('#btnRedo').addEventListener('click', redo);
 $('#btnFit').addEventListener('click', fit);
 $('#btnClear').addEventListener('click', async () => {
-  if (S.walls.length && await ask('Alle Wände löschen?', { text: 'Mit Strg+Z kannst du das rückgängig machen.', ok: 'Löschen' }))
+  if (S.walls.length && await ask(T('Alle Wände löschen?'), { text: T('Mit Strg+Z kannst du das rückgängig machen.'), ok: T('Löschen') }))
     mutate(() => { S.walls = []; ui.sel = null; });
 });
 const gridDlg = $('#gridDlg');
@@ -1262,12 +1262,12 @@ $('#gOk').addEventListener('click', e => {
   const c = clamp(parseInt($('#gCols').value) || 1, 1, 30), r = clamp(parseInt($('#gRows').value) || 1, 1, 30);
   gridDlg.close();
   mutate(() => { S.walls = tpl ? stripWalls(S, tpl.cols, tpl.rows) : gridWalls(S, c, r); ui.sel = null; });
-  if (A.conflicts) flash('Die Schublade ist für diese Vorlage zu klein – rot markierte Stellen anpassen.');
+  if (A.conflicts) flash(T('Die Schublade ist für diese Vorlage zu klein – rot markierte Stellen anpassen.'));
 });
 
 // header buttons
 $('#btnNew').addEventListener('click', async () => {
-  if (!await ask('Neues Projekt beginnen?', { text: 'Alle Wände werden entfernt. Schublade und Einstellungen bleiben.', ok: 'Neu beginnen' })) return;
+  if (!await ask(T('Neues Projekt beginnen?'), { text: T('Alle Wände werden entfernt. Schublade und Einstellungen bleiben.'), ok: T('Neu beginnen') })) return;
   mutate(() => { const keep = { drawer: S.drawer, profile: S.profile, preset: S.preset, settings: S.settings }; S = { ...defaultState(), ...JSON.parse(JSON.stringify(keep)) }; });
   syncInputs(); fit();
 });
@@ -1276,7 +1276,7 @@ $('#btnOpen').addEventListener('click', () => $('#fileIn').click());
 $('#fileIn').addEventListener('change', async e => {
   const f = e.target.files[0]; if (!f) return;
   try { const o = migrate(JSON.parse(await f.text())); mutate(() => { S = o; }); syncInputs(); fit(); render(); }
-  catch (err) { ask('Datei konnte nicht gelesen werden', { text: err.message }); }
+  catch (err) { ask(T('Datei konnte nicht gelesen werden'), { text: err.message }); }
   e.target.value = '';
 });
 const exportMenu = $('#exportMenu');
@@ -1302,8 +1302,8 @@ async function shareLink() {
   const data = await pipe(new TextEncoder().encode(JSON.stringify({ name, drawer, profile, settings, walls })), new CompressionStream('deflate-raw'));
   const base = location.protocol.startsWith('http') ? location.origin + location.pathname : PAGES_URL;
   const url = base + '#p=' + b64url(data);
-  try { await navigator.clipboard.writeText(url); flash('Link kopiert – er enthält das ganze Layout.'); }
-  catch { await ask('Link zum Teilen', { text: 'Kopiere diesen Link:', input: url }); }
+  try { await navigator.clipboard.writeText(url); flash(T('Link kopiert – er enthält das ganze Layout.')); }
+  catch { await ask(T('Link zum Teilen'), { text: T('Kopiere diesen Link:'), input: url }); }
 }
 async function loadFromHash() {
   const m = location.hash.match(/^#p=([\w-]+)$/);
@@ -1312,8 +1312,8 @@ async function loadFromHash() {
   try {
     const o = migrate(JSON.parse(new TextDecoder().decode(await pipe(unb64url(m[1]), new DecompressionStream('deflate-raw')))));
     mutate(() => { S = o; }); syncInputs(); fit(); render();
-    flash('Geteiltes Layout geladen – Rückgängig holt dein vorheriges zurück.');
-  } catch { ask('Link konnte nicht gelesen werden', { text: 'Der Link ist unvollständig oder beschädigt.' }); }
+    flash(T('Geteiltes Layout geladen – Rückgängig holt dein vorheriges zurück.'));
+  } catch { ask(T('Link konnte nicht gelesen werden'), { text: T('Der Link ist unvollständig oder beschädigt.') }); }
 }
 
 // The published page is the self-contained build; offer it as a file to keep.
@@ -1323,13 +1323,13 @@ async function saveOffline() {
   try {
     const html = await fetch(location.href, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(r.status); return r.text(); });
     download('Drawer-Divider-Designer.html', html, 'text/html');
-  } catch (err) { ask('Download nicht möglich', { text: 'Speichere die Seite stattdessen mit Strg+S.' }); }
+  } catch (err) { ask(T('Download nicht möglich'), { text: T('Speichere die Seite stattdessen mit Strg+S.') }); }
 }
 
 // ---------------------------------------------------------------------------
 // Export
 // ---------------------------------------------------------------------------
-const fileBase = () => (S.name || 'schublade').replace(/[^\w\-äöüÄÖÜß ]+/g, '').trim().replace(/\s+/g, '_') || 'schublade';
+const fileBase = () => (S.name || T('schublade')).replace(/[^\w\-äöüÄÖÜß ]+/g, '').trim().replace(/\s+/g, '_') || T('schublade');
 function download(name, text, type) {
   const blob = new Blob([text], { type: type + ';charset=utf-8' });
   const a = document.createElement('a');
@@ -1339,12 +1339,12 @@ function download(name, text, type) {
 }
 
 function bomCsv() {
-  const b = A.bom, rows = [['Kategorie', 'Teil', 'Länge (mm)', 'Höhe/Breite (mm)', 'Anzahl', 'ca. Gramm je Stück', 'Hinweis']];
-  for (const c of b.connectors) rows.push(['Verbinder', typeName(c.type), '', fmt(S.profile.height), c.qty, fmt(c.g), c.type]);
-  for (const w of b.walls) rows.push(['Wand', `Wand ${w.id} ${fmt(w.len)}`, fmt(w.len), fmt(w.h), w.qty, fmt(w.g), `Dicke ${fmt(A.g.t)}`]);
-  for (const r of b.rails) rows.push(['Schiene', `Schiene ${fmt(r.len)}`, fmt(r.len), fmt(r.width), r.qty, fmt(r.g), `Zahnversatz ${fmt(r.offset, 2)}${r.tongue ? ', Zapfen' : ''}${r.socket ? ', Buchse' : ''}`]);
-  for (const x of b.extras) rows.push(['Zubehör', 'Beschriftungsclip', '40', '', x.qty, fmt(x.g), 'oben auf eine Wand stecken']);
-  rows.push([], ['Summe', '', '', '', b.parts, fmt(b.grams, 0), `Schublade ${S.drawer.w}×${S.drawer.d}×${S.drawer.h} mm`]);
+  const b = A.bom, rows = [['Kategorie', 'Teil', 'Länge (mm)', 'Höhe/Breite (mm)', 'Anzahl', 'ca. Gramm je Stück', 'Hinweis'].map(T)];
+  for (const c of b.connectors) rows.push([T('Verbinder'), typeName(c.type), '', fmt(S.profile.height), c.qty, fmt(c.g), c.type]);
+  for (const w of b.walls) rows.push([T('Wand'), T`Wand ${w.id}` + ' ' + fmt(w.len), fmt(w.len), fmt(w.h), w.qty, fmt(w.g), T`Dicke ${fmt(A.g.t)}`]);
+  for (const r of b.rails) rows.push([T('Schiene'), T('Schiene') + ' ' + fmt(r.len), fmt(r.len), fmt(r.width), r.qty, fmt(r.g), T`Zahnversatz ${fmt(r.offset, 2)}` + (r.tongue ? ', ' + T('Zapfen') : '') + (r.socket ? ', ' + T('Buchse') : '')]);
+  for (const x of b.extras) rows.push([T('Zubehör'), T('Beschriftungsclip'), '40', '', x.qty, fmt(x.g), T('oben auf eine Wand stecken')]);
+  rows.push([], [T('Summe'), '', '', '', b.parts, fmt(b.grams, 0), T`Schublade ${S.drawer.w}×${S.drawer.d}×${S.drawer.h} mm`]);
   return '﻿' + rows.map(r => r.map(v => /[;"\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(';')).join('\r\n');
 }
 
@@ -1363,18 +1363,18 @@ function buildJob() {
   for (const w of b.walls) {
     const lab = st.labels ? `, label = "${w.id}", label2 = "${num(w.len)}"` : '';
     const call = `dd_wall(${num(w.len)}, P, height = ${num(w.h)}, pattern = "${st.pattern}", grip = ${num(st.grip)}${lab})`;
-    parts.push({ label: `Wand ${w.id} ${num(w.len)} mm`, body: flat ? `translate([0, ${num(w.h / 2)}, 0]) dd_lay_flat(${num(g.t)}) ${call};` : call + ';',
+    parts.push({ label: T`Wand ${w.id}` + ` ${num(w.len)} mm`, body: flat ? `translate([0, ${num(w.h / 2)}, 0]) dd_lay_flat(${num(g.t)}) ${call};` : call + ';',
                  px: w.len + gap, py: (flat ? w.h : g.t) + gap, qty: w.qty, w: w.len });
   }
   for (const r of b.rails) {
     const call = `dd_rail(${num(r.len)}, ${num(r.width)}, P, plate = ${num(st.railPlate)}, tooth_t = ${num(st.toothT)}, tooth_h = ${num(st.toothH)}, teeth_offset = ${num(r.offset)}, tongue = ${r.tongue}, socket = ${r.socket}, screws = ${r.screws})`;
-    parts.push({ label: `Schiene ${num(r.len)} mm${r.tongue || r.socket ? ' (' + [r.socket && 'Buchse', r.tongue && 'Zapfen'].filter(Boolean).join('+') + ')' : ''}`,
+    parts.push({ label: T('Schiene') + ` ${num(r.len)} mm` + (r.tongue || r.socket ? ' (' + [r.socket && T('Buchse'), r.tongue && T('Zapfen')].filter(Boolean).join('+') + ')' : ''),
                  body: `translate([${num(-r.len / 2)}, ${num(g.railT / 2)}, 0]) rotate([90, 0, 0]) ${call};`, px: r.len + gap, py: g.railT + gap, qty: r.qty, w: r.len });
   }
 
   for (const x of b.extras) {
     const sx = g.t + 0.15 + 2.4 + 12 * Math.cos(Math.PI / 4) + 1.2, sy = 8 + 2.4 + 12 * Math.sin(Math.PI / 4);
-    parts.push({ label: 'Beschriftungsclip', body: `translate([0, ${num(8 - sy / 2)}, 0]) dd_label_clip(40, P);`, px: sx + 4, py: sy + 4, qty: x.qty, w: sx });
+    parts.push({ label: T('Beschriftungsclip'), body: `translate([0, ${num(8 - sy / 2)}, 0]) dd_label_clip(40, P);`, px: sx + 4, py: sy + 4, qty: x.qty, w: sx });
   }
   // split big quantities into several bed-sized plates
   const plates = [];
@@ -1383,7 +1383,7 @@ function buildJob() {
     const n = Math.ceil(pt.qty / per);
     for (let k = 0; k < n; k++) {
       const q = Math.min(per, pt.qty - k * per);
-      plates.push({ part: i, qty: q, label: `${q}x ${pt.label}${n > 1 ? ` (Platte ${k + 1} von ${n})` : ''}` });
+      plates.push({ part: i, qty: q, label: `${q}x ${pt.label}${n > 1 ? T` (Platte ${k + 1} von ${n})` : ''}` });
     }
   });
   const tolIdx = plates.length + 1;
@@ -1399,17 +1399,17 @@ function buildJob() {
 
   const lib = (window.DD_SCAD_LIB || '').trim();
   const L = [];
-  L.push(`// The Drawer Dividers – Druckjob "${S.name}"`);
-  L.push(`// Erstellt mit dem Drawer Divider Designer am ${new Date().toLocaleString('de-DE')}`);
-  L.push(`// Schublade ${S.drawer.w} × ${S.drawer.d} × ${S.drawer.h} mm · ${b.parts} Teile · ca. ${fmt(b.grams, 0)} g`);
+  L.push(T`// The Drawer Dividers – Druckjob "${S.name}"`);
+  L.push(T`// Erstellt mit dem Drawer Divider Designer am ${new Date().toLocaleString(LANG === 'en' ? 'en-US' : 'de-DE')}`);
+  L.push(T`// Schublade ${S.drawer.w} × ${S.drawer.d} × ${S.drawer.h} mm · ${b.parts} Teile · ca. ${fmt(b.grams, 0)} g`);
   L.push('//');
-  L.push('// So exportierst du die STLs:');
-  L.push('//   In OpenSCAD: rechts im Customizer "Teil" wählen, F6 (Rendern), F7 (STL exportieren).');
-  L.push('//   Oder direkt im Designer: "STLs erzeugen" rechnet alle Platten im Browser.');
+  L.push(T('// So exportierst du die STLs:'));
+  L.push(T('//   In OpenSCAD: rechts im Customizer "Teil" wählen, F6 (Rendern), F7 (STL exportieren).'));
+  L.push(T('//   Oder direkt im Designer: "STLs erzeugen" rechnet alle Platten im Browser.'));
   L.push('');
   L.push('/* [Export] */');
-  L.push('// Welche Druckplatte? (0 = Übersicht aller Teile)');
-  L.push(`PART = 0; // [0:Übersicht, ${plates.map((pl, i) => `${i + 1}:${pl.label.replace(/[,\]]/g, ' ')}`).join(', ')}, ${tolIdx}:Toleranztest]`);
+  L.push(T('// Welche Druckplatte? (0 = Übersicht aller Teile)'));
+  L.push(`PART = 0; // [0:${T('Übersicht')}, ${plates.map((pl, i) => `${i + 1}:${pl.label.replace(/[,\]]/g, ' ')}`).join(', ')}, ${tolIdx}:${T('Toleranztest')}]`);
   L.push('');
   L.push('/* [Hidden] */');
   L.push('$fn = 48;');
@@ -1429,11 +1429,11 @@ function buildJob() {
   L.push('');
   if (lib) {
     L.push('// ============================================================================');
-    L.push('//  Bibliothek (scad/lib/drawer_divider.scad, eingebettet)');
+    L.push(T('//  Bibliothek (scad/lib/drawer_divider.scad, eingebettet)'));
     L.push('// ============================================================================');
     L.push(lib);
   } else {
-    L.push('// Bibliothek nicht eingebettet – lege diese Datei neben drawer_divider.scad:');
+    L.push(T('// Bibliothek nicht eingebettet – lege diese Datei neben drawer_divider.scad:'));
     L.push('use <drawer_divider.scad>');
   }
   return { scad: L.join('\n') + '\n', plates: plates.map((pl, i) => ({ num: i + 1, label: pl.label })) };
@@ -1538,13 +1538,20 @@ $('#btn3d').addEventListener('click', async () => {
   $('#three').classList.toggle('show', ui.is3d);
   if (ui.is3d) {
     try { await init3D(); build3D(true); }
-    catch (err) { ui.is3d = false; $('#three').classList.remove('show'); $('#btn3d').classList.remove('on'); flash('3D-Vorschau braucht eine Internetverbindung (three.js).'); }
+    catch (err) { ui.is3d = false; $('#three').classList.remove('show'); $('#btn3d').classList.remove('on'); flash(T('3D-Vorschau braucht eine Internetverbindung (three.js).')); }
   }
 });
 
 // ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
+translateDom();
+$('#btnLang').textContent = LANG === 'en' ? 'DE' : 'EN';
+$('#btnLang').addEventListener('click', () => {
+  try { localStorage.setItem('dd-lang', LANG === 'en' ? 'de' : 'en'); } catch { /* no storage: stays as it is */ }
+  location.reload();
+});
+if (S.name === 'Meine Schublade' || S.name === 'My drawer') S.name = T('Meine Schublade');
 syncInputs(); syncSplitBar();
 A = analyze(S);
 fit();

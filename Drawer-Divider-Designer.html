@@ -226,6 +226,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
   </div>
   <input id="projName" value="Meine Schublade" title="Projektname">
   <div class="spacer"></div>
+  <button class="btn" id="btnLang" title="Sprache / Language">EN</button>
   <button class="btn" id="btnNew" title="Neues Projekt">Neu</button>
   <button class="btn" id="btnOpen" title="Projekt öffnen (.json)">Öffnen</button>
   <button class="btn" id="btnSave" title="Projekt speichern (.json)">Speichern</button>
@@ -434,6 +435,182 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
 </dialog>
 
 <script>
+// Drawer Divider Designer – language. The page is written in German; EN maps the German
+// text to English. T('text') or T`text ${x}` translates (placeholders are {} in the keys),
+// translateDom() does the static texts and tooltips of the page.
+// tools/i18n_keys.py lists texts without a translation.
+'use strict';
+
+const LANG = (() => {
+  try { const l = localStorage.getItem('dd-lang'); if (l === 'de' || l === 'en') return l; } catch { /* no storage */ }
+  return /^de\b/i.test(navigator.language || '') ? 'de' : 'en';
+})();
+
+const EN = {
+  // header and export menu
+  'Neu': 'New', 'Öffnen': 'Open', 'Speichern': 'Save', 'STLs erzeugen': 'Make STLs',
+  'Neues Projekt': 'New project', 'Projekt öffnen (.json)': 'Open project (.json)', 'Projekt speichern (.json)': 'Save project (.json)',
+  'Projektname': 'Project name', 'Sprache / Language': 'Sprache / Language',
+  'Alle Druckplatten mit OpenSCAD im Browser rechnen': 'Render every print plate with OpenSCAD in the browser',
+  'OpenSCAD-Druckjob': 'OpenSCAD print job', 'Alle Teile in einer .scad – Teil wählen, STL exportieren': 'All parts in one .scad – pick a part, export the STL',
+  'Link teilen': 'Share link', 'Das ganze Layout steckt im Link – zum Verschicken oder für MakerWorld': 'The whole layout is in the link – to send around or for MakerWorld',
+  'Stückliste (CSV)': 'Parts list (CSV)', 'Für Excel / Tabellen': 'For Excel / spreadsheets',
+  'Aufbauplan drucken / PDF': 'Print assembly plan / PDF', 'Plan mit Wandbuchstaben, Teileliste und Aufbauschritte': 'Plan with wall letters, parts list and assembly steps',
+  'Offline-Version herunterladen': 'Download offline version', 'Der ganze Designer als eine Datei, läuft ohne Internet': 'The whole designer as one file, works without internet',
+
+  // left panel
+  'Schublade (Innenmaß)': 'Drawer (inside)', 'Breite': 'Width', 'Tiefe': 'Depth', 'Höhe': 'Height', 'Eckradius': 'Corner radius',
+  'Radius der Innenecken der Schublade – die Rahmenecken werden passend abgerundet': 'Radius of the inside corners of the drawer – the frame corners are rounded to match',
+  'Am Schubladenrand': 'At the drawer edge', 'Rahmen': 'Frame', 'Außenwände mit Ecken und T-Stücken – steht stabil für sich': 'Outer walls with corners and T pieces – stands on its own',
+  'Endstücke': 'End caps', 'Wände enden mit einem Endstück an der Schubladenwand': 'Walls end with an end cap at the drawer wall',
+  'Raster-Schienen': 'Grid rails', 'Zahnschienen an den Seiten, Wände rasten im Raster ein': 'Toothed rails on the sides, walls snap into the grid',
+  'Direkt klemmen': 'Clamp directly', 'Wände laufen bis zur Schubladenwand, kein Teil am Rand': 'Walls run up to the drawer wall, no part at the edge',
+  'Aufsteck-Verbinder': 'Slip-on connectors', 'Lange Wände laufen durch, Verbinder werden von oben aufgesteckt': 'Long walls run through, connectors are pushed on from above',
+  'Trenner': 'Dividers', 'Wanddicke': 'Wall thickness', 'Toleranz': 'Tolerance', 'Höhe automatisch': 'Automatic height',
+  'Schubladenhöhe minus 5 mm Luft – eine eigene Höhe eintippen schaltet das ab': 'Drawer height minus 5 mm clearance – typing your own height turns this off',
+  'Wand-Muster': 'Wall pattern', 'Keins': 'None', 'Waben': 'Honeycomb', 'Kreise': 'Circles',
+  'Mein Profil': 'My profile', 'Standard': 'Default', 'Löschen': 'Delete',
+  'Gespeicherte Einstellungen laden': 'Load saved settings', 'Aktuelle Einstellungen als Profil speichern': 'Save current settings as a profile', 'Profil löschen': 'Delete profile',
+  'Speichert alle Einstellungen außer Schublade, Rand und Fächern – z.B. Toleranz und Druckbett deines Druckers.': 'Saves all settings except drawer, edge and compartments – e.g. the tolerance and bed size of your printer.',
+  'Erweitert': 'Advanced', 'Druckbett': 'Print bed', 'Max. Wandlänge': 'Max. wall length', 'Ausrichtung': 'Orientation', 'Stehend': 'Standing', 'Liegend': 'Lying flat',
+  'Griffmulde': 'Finger notch', 'Raster (Fang)': 'Snap grid', 'Abstand Rand': 'Edge gap',
+  'Beschriftungsclips': 'Label clips', 'Ein Clip pro Fach zum Aufstecken auf die Wand – mit Stift beschriften oder Etikett aufkleben': 'One clip per compartment to push onto the wall – write on it or stick a label on',
+  'Wände beschriften': 'Label walls', 'Buchstabe und Länge werden in die Wandenden graviert (verschwinden im Verbinder) und stehen im Plan': 'Letter and length are engraved into the wall ends (hidden in the connector) and listed in the plan',
+  'Längere Wände werden automatisch mit geraden Verbindern geteilt.': 'Longer walls are split automatically with straight connectors.',
+  'Verbinder': 'Connectors', 'Einschubtiefe': 'Insert depth', 'Armlänge': 'Arm length', 'Wandung': 'Shell', 'Innenradius': 'Inner radius', 'Deckel': 'Cap',
+  'Boden (Aufsteck)': 'Floor (slip-on)', 'Einführfase': 'Lead-in chamfer', 'Elefantenfuß': 'Elephant foot', 'Magnet Ø': 'Magnet Ø', 'Magnet Tiefe': 'Magnet depth',
+  'Spiel Wandende': 'Wall end gap', 'Spiel oben': 'Top gap', 'Raster-Schiene': 'Grid rail', 'Platte': 'Plate', 'Zahn': 'Tooth', 'Zahnhöhe': 'Tooth height',
+  'Alles auf Standard zurücksetzen': 'Reset everything to default',
+
+  // toolbar and canvas
+  'Zeichnen': 'Draw', 'Teilen': 'Split', 'Auswählen': 'Select', 'Radieren': 'Erase', 'Vorlage': 'Template',
+  'Wand zeichnen (W)': 'Draw wall (W)', 'Fach teilen (S)': 'Split compartment (S)', 'Auswählen & verschieben (V)': 'Select & move (V)', 'Wandstück entfernen (E)': 'Remove wall piece (E)',
+  'Rückgängig (Strg+Z)': 'Undo (Ctrl+Z)', 'Wiederholen (Strg+Y)': 'Redo (Ctrl+Y)', 'Raster-Vorlage': 'Layout template', 'Alle Wände löschen': 'Delete all walls',
+  'Einpassen (F)': 'Fit (F)', '3D-Vorschau': '3D preview', 'Senkrechte Wand': 'Vertical wall', 'Waagerechte Wand': 'Horizontal wall',
+  'Teilung': 'Split into', 'frei': 'free', 'Richtung': 'Direction', 'Shift = Richtung wechseln': 'Shift = change direction', 'Vorne': 'Front',
+  'Mausrad = Zoom · Rechte/mittlere Maustaste = Verschieben · Entf = Auswahl löschen · Esc = Abbrechen': 'Mouse wheel = zoom · right/middle button = pan · Del = delete selection · Esc = cancel',
+  'Klicken & ziehen, um eine Wand zu zeichnen. Endpunkte rasten an Rand, Raster und bestehenden Wänden ein.': 'Click & drag to draw a wall. End points snap to the edge, the grid and existing walls.',
+  'In ein Fach klicken, um es zu teilen. Zahl 1–6 = Anzahl Fächer, Shift = Richtung.': 'Click into a compartment to split it. Keys 1–6 = number of compartments, Shift = direction.',
+  'Wand anklicken zum Auswählen, ziehen zum Verschieben.': 'Click a wall to select it, drag to move it.',
+  'Wandstück zwischen zwei Verbindern anklicken, um es zu entfernen.': 'Click a wall piece between two connectors to remove it.',
+
+  // right panel
+  'Übersicht': 'Overview', 'Teile': 'Parts', 'Fächer': 'Compartments', 'g Filament ca.': 'g filament approx.', 'Hinweise': 'Notes', 'Auswahl': 'Selection',
+  'Stückliste': 'Parts list', 'Aufbauplan': 'Assembly plan', 'Legende': 'Legend', 'Wand': 'Wall', 'Aufsteck': 'Slip-on', 'Verlängerung': 'Joiner', 'Schiene': 'Rail',
+  '{} Teile': '{} parts', 'Verbinder · {} mm hoch': 'Connectors · {} mm high', 'Wände · {} × {} mm': 'Walls · {} × {} mm', 'Zubehör': 'Accessories',
+  'Höhe {} mm · ca. {} g': 'Height {} mm · approx. {} g', '{} · ca. {} g': '{} · approx. {} g',
+  'Beschriftungsclip': 'Label clip', 'Wird oben auf eine Wand gesteckt · ca. {} g': 'Pushed onto the top of a wall · approx. {} g',
+  'Breite {} · Versatz {}': 'Width {} · offset {}', ' · Zapfen': ' · tongue', ' · Buchse': ' · socket', 'Zapfen': 'tongue', 'Buchse': 'socket',
+  'Noch keine Teile – zeichne Wände in die Schublade.': 'No parts yet – draw walls into the drawer.', 'Alles passt.': 'Everything fits.',
+  'Mittellinie': 'Centre line', 'Druckteile': 'Printed parts', 'waagerecht': 'horizontal', 'senkrecht': 'vertical',
+  'Ziehen zum Verschieben · Entf zum Löschen': 'Drag to move · Del to delete',
+
+  // connector types
+  'Kreuz': 'Cross', '4 Wände treffen sich': '4 walls meet', 'T-Stück': 'T piece', '3 Wände': '3 walls', 'Ecke': 'Corner', '2 Wände im 90°-Winkel': '2 walls at 90°',
+  'Rahmenecke gerundet': 'Rounded frame corner', 'Außen gerundet für die Schubladenecke': 'Rounded outside for the drawer corner',
+  'Gerade': 'Straight', 'Verlängert eine geteilte Wand': 'Joins a split wall', 'Endstück': 'End cap', 'Freies Wandende / am Rand': 'Free wall end / at the edge',
+  'Aufsteck-Kreuz durchgehend': 'Slip-on cross, through', 'Aufsteck-T durchgehend': 'Slip-on T, through', 'Auf durchgehende Wand gesteckt': 'Pushed onto a through wall',
+  'Aufsteck-': 'Slip-on ', ', Wände enden darin': ', walls end inside', ' (Verlängerung)': ' (joiner)',
+
+  // notes
+  'Eine {} mm lange Wand ist länger als {} mm – in {} Teile mit Verlängerung geteilt.': 'A {} mm wall is longer than {} mm – split into {} parts with joiners.',
+  '{} Wandstück(e) passen nicht – Verbinder liegen zu dicht beieinander (mind. {} mm Abstand).': '{} wall piece(s) do not fit – connectors are too close together (at least {} mm apart).',
+  '{} zu kurze Wandstück(e) – rot markiert.': '{} wall piece(s) too short – marked red.',
+  '{}× überschneiden sich Verbinder – Wände auf einer Linie brauchen mind. {} mm Abstand (rot markiert).': '{}× connectors overlap – walls on one line need at least {} mm between them (marked red).',
+  '{} Wandende(n) treffen keinen Schlitz der Schiene – mit „Auswählen" leicht verschieben.': '{} wall end(s) miss a slot of the rail – nudge them with "Select".',
+  'Verbinder sind {} mm hoch, die Schublade nur {} mm.': 'Connectors are {} mm high, the drawer only {} mm.',
+  'Nur {} mm Luft über den Trennern – die Schublade könnte hängen bleiben.': 'Only {} mm clearance above the dividers – the drawer could get stuck.',
+  'Längstes Teil ({} mm) passt kaum aufs {}-mm-Druckbett.': 'Longest part ({} mm) barely fits the {} mm print bed.',
+  'Eckradius zu groß: Die Rahmenecken lassen sich nur bis {} mm runden, sonst würden die Schlitze angeschnitten. Mehr Abstand zum Rand oder Endstücke helfen.': 'Corner radius too big: the frame corners can only be rounded up to {} mm, otherwise the slots would be cut. A larger edge gap or end caps help.',
+  'Aufsteck-Modus: Alle Wände sind {} mm niedriger, damit die Aufsteck-Verbinder bündig sitzen.': 'Slip-on mode: all walls are {} mm lower so the slip-on connectors sit flush.',
+  'Geht nicht – Verbinder würden sich überschneiden (mind. {} mm Wandabstand).': 'Not possible – connectors would overlap (at least {} mm between walls).',
+  ' Weniger Fächer wählen.': ' Choose fewer compartments.',
+  'Zu nah an der Nachbarwand oder am Rand – mindestens {} mm Abstand, sonst passen die Verbinder nicht.': 'Too close to the next wall or the edge – at least {} mm, otherwise the connectors do not fit.',
+  'Zu nah an der Nachbarwand oder am Rand – mindestens {} mm Abstand.': 'Too close to the next wall or the edge – at least {} mm.',
+  'Der Rahmen gehört zum Randmodus „Rahmen" – ändere links den Rand, um ihn zu entfernen.': 'The frame belongs to the "Frame" edge mode – change the edge on the left to remove it.',
+  '3D-Vorschau braucht eine Internetverbindung (three.js).': 'The 3D preview needs an internet connection (three.js).',
+
+  // assembly plan
+  'direkt geklemmt': 'clamped directly', 'Schublade {} × {} × {} mm · Rand: {}': 'Drawer {} × {} × {} mm · edge: {}', ' · Aufsteck-Verbinder': ' · slip-on connectors',
+  'Wände {} × {} mm': 'walls {} × {} mm', 'Teil': 'Part', 'Maß': 'Size', 'Anzahl': 'Qty', 'Wand {}': 'Wall {}', '{} mm hoch': '{} mm high', '40 mm breit': '40 mm wide',
+  'Alle Teile drucken ({} Teile, ca. {} g).': 'Print all parts ({} parts, approx. {} g).',
+  ' In jedes Wandende ist sein Buchstabe und seine Länge graviert.': ' Every wall end has its letter and length engraved.',
+  'Raster-Schienen an die Schubladenseiten kleben oder schrauben – zusammengesetzte Schienen mit Zapfen in die Buchse stecken.': 'Glue or screw the grid rails to the drawer sides – for joined rails push the tongue into the socket.',
+  'Mit dem Rahmen beginnen: Ecken, T-Stücke und die Außenwände zu einem Rechteck zusammenstecken.': 'Start with the frame: push corners, T pieces and the outer walls together into a rectangle.',
+  'Geteilte lange Wände mit den geraden Verlängerungen verbinden.': 'Join split long walls with the straight joiners.',
+  'Die durchgehenden Wände aufstellen, die kurzen Wände dazwischen stellen und dann die Verbinder von oben aufstecken.': 'Stand up the through walls, put the short walls in between and then push the connectors on from above.',
+  'Innenwände nach dem Plan einsetzen – die Buchstaben im Plan zeigen, welche Wand wohin gehört. Von einer Seite zur anderen arbeiten, jeweils Wand in den Verbinder schieben.': 'Fit the inner walls following the plan – the letters show which wall goes where. Work from one side to the other, sliding each wall into its connector.',
+  'Die Endstücke sitzen an der Schubladenwand – das Ganze am Stück in die Schublade setzen.': 'The end caps sit against the drawer wall – put the whole thing into the drawer in one piece.',
+  'Das fertige Gitter in die Schublade setzen.': 'Put the finished grid into the drawer.',
+  'Beschriftungsclips beschriften und oben auf die Wände der Fächer stecken.': 'Write on the label clips and push them onto the walls of the compartments.',
+
+  // dialogs and messages
+  'Abbrechen': 'Cancel', 'Anwenden': 'Apply', 'Schließen': 'Close', 'Spalten': 'Columns', 'Reihen': 'Rows',
+  'Teilt die ganze Schublade nach einer Vorlage auf. Vorhandene Wände werden ersetzt – danach kannst du alles frei anpassen.': 'Splits the whole drawer from a template. Existing walls are replaced – afterwards you can change everything freely.',
+  'Raster – gleich große Fächer': 'Grid – equal compartments', 'Besteck – 4 lange Fächer + 1 breites, geteilt': 'Cutlery – 4 long compartments + 1 wide, split',
+  'Werkstatt – 1 großes Fach + 3 kleine': 'Workshop – 1 large compartment + 3 small', 'Gemischt – 2 große + 4 kleine Fächer': 'Mixed – 2 large + 4 small compartments',
+  'Schreibtisch – schmal, breit, schmal': 'Desk – narrow, wide, narrow', 'Kleinteile – 4 × 4 kleine Fächer': 'Small parts – 4 × 4 small compartments',
+  'Profile können in diesem Browser nicht gespeichert werden.': 'Profiles cannot be saved in this browser.', 'Profil nicht gefunden.': 'Profile not found.',
+  'Profil speichern': 'Save profile', 'Name für das Profil, z.B. dein Drucker:': 'Name of the profile, e.g. your printer:', 'Mein Drucker': 'My printer',
+  'Profil „{}“ gespeichert.': 'Profile "{}" saved.', 'Profil „{}“ löschen?': 'Delete profile "{}"?',
+  'Alle Wände löschen?': 'Delete all walls?', 'Mit Strg+Z kannst du das rückgängig machen.': 'You can undo this with Ctrl+Z.',
+  'Die Schublade ist für diese Vorlage zu klein – rot markierte Stellen anpassen.': 'The drawer is too small for this template – adjust the places marked red.',
+  'Neues Projekt beginnen?': 'Start a new project?', 'Alle Wände werden entfernt. Schublade und Einstellungen bleiben.': 'All walls are removed. Drawer and settings stay.', 'Neu beginnen': 'Start over',
+  'Datei konnte nicht gelesen werden': 'Could not read the file',
+  'Link kopiert – er enthält das ganze Layout.': 'Link copied – it contains the whole layout.', 'Link zum Teilen': 'Link to share', 'Kopiere diesen Link:': 'Copy this link:',
+  'Geteiltes Layout geladen – Rückgängig holt dein vorheriges zurück.': 'Shared layout loaded – Undo brings back your previous one.',
+  'Link konnte nicht gelesen werden': 'Could not read the link', 'Der Link ist unvollständig oder beschädigt.': 'The link is incomplete or damaged.',
+  'Download nicht möglich': 'Download not possible', 'Speichere die Seite stattdessen mit Strg+S.': 'Save the page with Ctrl+S instead.',
+  'Meine Schublade': 'My drawer', 'Schublade': 'Drawer', 'schublade': 'drawer',
+
+  // STL dialog
+  'STL-Dateien erzeugen': 'Make STL files',
+  'OpenSCAD rechnet jede Druckplatte direkt im Browser aus der SCAD-Bibliothek. Beim ersten Mal wird OpenSCAD geladen (ca. 11 MB, Internet nötig).': 'OpenSCAD renders every print plate right in the browser from the SCAD library. The first time OpenSCAD is loaded (about 11 MB, internet needed).',
+  '3MF herunterladen': 'Download 3MF', 'ZIP herunterladen': 'Download ZIP', 'Alle Platten in einer Datei für Bambu Studio, OrcaSlicer, PrusaSlicer': 'All plates in one file for Bambu Studio, OrcaSlicer, PrusaSlicer',
+  'Noch keine Teile – zeichne zuerst Fächer in die Schublade.': 'No parts yet – draw compartments into the drawer first.',
+  'wartet': 'waiting', 'Startet …': 'Starting …', 'wird gerechnet …': 'rendering …', 'Platte {} von {} …': 'Plate {} of {} …',
+  'Fertig – {} STL-Dateien bereit.': 'Done – {} STL files ready.', 'Fertig – {} von {} Platten erzeugt.': 'Done – {} of {} plates made.',
+  'OpenSCAD wird geladen …': 'Loading OpenSCAD …', 'OpenSCAD konnte nicht geladen werden: ': 'Could not load OpenSCAD: ', 'OpenSCAD hat keine STL erzeugt': 'OpenSCAD made no STL',
+  'Worker-Fehler: ': 'Worker error: ', '3MF wird gebaut …': 'Building 3MF …', '3MF mit {} Platten gespeichert.': '3MF with {} plates saved.', '3MF fehlgeschlagen: ': '3MF failed: ',
+  '_stueckliste': '_parts', '_druckjob': '_printjob', '_projekt': '_project', '_teile': '_parts',
+
+  // CSV and print job
+  'Kategorie': 'Category', 'Länge (mm)': 'Length (mm)', 'Höhe/Breite (mm)': 'Height/width (mm)', 'ca. Gramm je Stück': 'approx. grams each', 'Hinweis': 'Note',
+  'Dicke {}': 'Thickness {}', 'Zahnversatz {}': 'Tooth offset {}', 'oben auf eine Wand stecken': 'push onto the top of a wall', 'Summe': 'Total',
+  'Schublade {}×{}×{} mm': 'Drawer {}×{}×{} mm', ' (Platte {} von {})': ' (plate {} of {})', 'Toleranztest': 'Tolerance test',
+  '// The Drawer Dividers – Druckjob "{}"': '// The Drawer Dividers – print job "{}"',
+  '// Erstellt mit dem Drawer Divider Designer am {}': '// Made with the Drawer Divider Designer on {}',
+  '// Schublade {} × {} × {} mm · {} Teile · ca. {} g': '// Drawer {} × {} × {} mm · {} parts · approx. {} g',
+  '// So exportierst du die STLs:': '// How to export the STLs:',
+  '//   In OpenSCAD: rechts im Customizer "Teil" wählen, F6 (Rendern), F7 (STL exportieren).': '//   In OpenSCAD: pick "PART" in the Customizer on the right, F6 (render), F7 (export STL).',
+  '//   Oder direkt im Designer: "STLs erzeugen" rechnet alle Platten im Browser.': '//   Or right in the designer: "Make STLs" renders all plates in the browser.',
+  '// Welche Druckplatte? (0 = Übersicht aller Teile)': '// Which print plate? (0 = overview of all parts)',
+  '//  Bibliothek (scad/lib/drawer_divider.scad, eingebettet)': '//  Library (scad/lib/drawer_divider.scad, embedded)',
+  '// Bibliothek nicht eingebettet – lege diese Datei neben drawer_divider.scad:': '// Library not embedded – put this file next to drawer_divider.scad:',
+};
+
+function T(strs, ...vals) {
+  if (typeof strs === 'string') return LANG === 'en' && EN[strs] !== undefined ? EN[strs] : strs;
+  const key = strs.join('{}'), tpl = LANG === 'en' && EN[key] !== undefined ? EN[key] : key;
+  let i = 0;
+  return tpl.replace(/\{\}/g, () => vals[i++]);
+}
+
+function translateDom(root = document.body) {
+  document.documentElement.lang = LANG;
+  if (LANG === 'de') return;
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let n; (n = w.nextNode());) {
+    if (n.parentElement.closest('script, style')) continue;
+    const key = n.textContent.replace(/\s+/g, ' ').trim();
+    if (key && EN[key] !== undefined) n.textContent = n.textContent.replace(/\S[\s\S]*\S|\S/, EN[key]);
+  }
+  for (const el of root.querySelectorAll('[title], [placeholder]'))
+    for (const a of ['title', 'placeholder']) { const v = el.getAttribute(a); if (v && EN[v.trim()] !== undefined) el.setAttribute(a, EN[v.trim()]); }
+}
+
+</script>
+<script>
 // Generated by tools/build.py from scad/lib/drawer_divider.scad – do not edit.
 window.DD_SCAD_LIB = "// =============================================================================\n//  The Drawer Dividers – core library (V3)\n//  Usage:  use <lib/drawer_divider.scad>\n//  All dimensions in mm. This file creates no geometry on its own.\n// =============================================================================\n\nDD_VERSION = \"3.0.0\";\nDD_EPS = 0.01;\n\n// =============================================================================\n//  System profile\n// =============================================================================\n// Every part of one drawer is built from the same profile, so walls,\n// connectors and rails always fit each other. A profile is a key/value list;\n// read single values with dd(p, \"key\").\n\nfunction dd_profile(\n    wall_t   = 2.0,  // thickness of the printed walls\n    tol      = 0.2,  // extra slot width so the wall does not bind\n    height   = 40,   // connector height\n    insert   = 14,   // how deep a wall slides into a connector arm\n    shell    = 2.5,  // connector material left and right of the slot\n    arm      = 20,   // arm length, measured from the connector centre\n    fillet   = 10,   // inner fillet radius between two arms\n    edge_r   = 0.6,  // rounding of the outer vertical edges\n    cap      = 0,    // closed cap; 0 = slots open on both ends\n    floor_t  = 2,    // cap thickness of slip-on connectors\n    lead_in  = 1,    // chamfer at the open slot end\n    efc      = 0.4,  // elephant foot compensation at the bed side\n    magnet_d = 5,    // magnet / rubber foot pocket, 0 = off\n    magnet_h = 2,\n    end_gap  = 0.3,  // gap between wall end and pocket bottom\n    top_gap  = 0.2   // gap between wall top and cap (capped connectors only)\n) = [\n    [\"wall_t\", wall_t], [\"tol\", tol], [\"height\", height], [\"insert\", insert],\n    [\"shell\", shell], [\"arm\", arm], [\"fillet\", fillet], [\"edge_r\", edge_r],\n    [\"cap\", cap], [\"floor_t\", floor_t], [\"lead_in\", lead_in], [\"efc\", efc],\n    [\"magnet_d\", magnet_d], [\"magnet_h\", magnet_h], [\"end_gap\", end_gap],\n    [\"top_gap\", top_gap]\n];\n\nfunction dd(p, key) =\n    let(i = search([key], p)[0])\n    assert(is_num(i), str(\"dd(): unknown profile key '\", key, \"'\"))\n    p[i][1];\n\n// ---- derived values (the designer uses the same formulas) -------------------\n// centre distance two connectors on one wall need so their arms do not collide\nfunction dd_min_conn_gap(p) = 2 * dd(p, \"arm\") + 1;\nfunction dd_slot_w(p)       = dd(p, \"wall_t\") + dd(p, \"tol\");\nfunction dd_arm_w(p)        = dd_slot_w(p) + 2 * dd(p, \"shell\");\nfunction dd_pocket_start(p) = dd(p, \"arm\") - dd(p, \"insert\");\n// distance from a connector centre to the end of a fully inserted wall\nfunction dd_wall_inset(p)   = dd_pocket_start(p) + dd(p, \"end_gap\");\nfunction dd_cap(p, slip = false) =\n    slip ? max(dd(p, \"cap\"), dd(p, \"floor_t\")) : dd(p, \"cap\");\nfunction dd_wall_height(p, slip = false) =\n    let(c = dd_cap(p, slip))\n    dd(p, \"height\") - (c > 0 ? c + dd(p, \"top_gap\") : 0);\n// wall length for two connector centres `center_dist` apart\nfunction dd_wall_length(center_dist, p, ends = 2) =\n    center_dist - ends * dd_wall_inset(p);\n\n// =============================================================================\n//  Connectors\n// =============================================================================\n// Directions: 0 = +X, 1 = +Y, 2 = -X, 3 = -Y.\n// Definition: [arms, slots, through_y, slip_on]\n//   through_y: one continuous slot along Y (the wall passes straight through)\n//   slip_on:   printed cap-down, then flipped and pushed onto the walls\n\nfunction dd_connector_types() = [\"cross\", \"tee\", \"corner\", \"corner_round\", \"straight\", \"end\",\n                                  \"slip_cross\", \"slip_tee\", \"slip_corner_r\", \"slip_corner_l\"];\n\nfunction dd_connector_def(type) =\n    type == \"cross\"         ? [[1,1,1,1], [1,1,1,1], false, false] :\n    type == \"tee\"           ? [[1,1,1,0], [1,1,1,0], false, false] :\n    type == \"corner\"        ? [[1,1,0,0], [1,1,0,0], false, false] :\n    type == \"corner_round\"  ? [[1,1,0,0], [1,1,0,0], false, false] :   // frame corner, use corner_r\n    type == \"straight\"      ? [[1,0,1,0], [1,0,1,0], false, false] :\n    type == \"end\"           ? [[1,0,0,0], [1,0,0,0], false, false] :\n    type == \"slip_cross\"    ? [[1,1,1,1], [1,1,1,1], true,  true ] :\n    type == \"slip_tee\"      ? [[1,1,0,1], [1,1,0,1], true,  true ] :\n    type == \"slip_corner_r\" ? [[1,1,0,0], [1,1,0,1], true,  true ] :\n    type == \"slip_corner_l\" ? [[0,1,1,0], [0,1,1,1], true,  true ] :\n    undef;\n\n// slip = true: part of a slip-on set. Every connector of the set gets the cap and\n// is pushed on from above, also where the walls end instead of running through.\n// corner_r rounds the outer corner, so a frame corner fits a drawer with rounded\n// corners (see dd_corner_r_max()).\nmodule dd_connector(type = \"cross\", p = dd_profile(), slip = false, corner_r = 0) {\n    def = dd_connector_def(type);\n    assert(!is_undef(def), str(\"dd_connector(): unknown type '\", type, \"'\"));\n    dd_connector_custom(arms = def[0], slots = def[1], through_y = def[2],\n                        cap = dd_cap(p, def[3] || slip), p = p, corner_r = corner_r);\n}\n\n// largest outer corner radius that still leaves 0.8 mm beside the slots\nfunction dd_corner_r_max(p) =\n    let(a = dd_arm_w(p) / 2, dx = dd_pocket_start(p) + a, dy = a - dd_slot_w(p) / 2 - 0.8)\n    dy <= 0 ? dx : dx + dy + sqrt(2 * dx * dy);\n\n// Build any connector from an arm/slot pattern.\nmodule dd_connector_custom(arms = [1,1,1,1], slots = undef, through_y = false,\n                           cap = 0, p = dd_profile(), corner_r = 0) {\n    sl  = is_undef(slots) ? arms : slots;\n    h   = dd(p, \"height\");\n    aw  = dd_arm_w(p);\n    arm = dd(p, \"arm\");\n    ps  = dd_pocket_start(p);\n    md  = dd(p, \"magnet_d\");\n    z0  = cap > 0 ? cap : -1;   // slots start above the cap\n\n    difference() {\n        linear_extrude(h) dd_connector_outline(arms, p, corner_r);\n\n        for (i = [0:3]) if (sl[i] && !(through_y && i == 3))\n            rotate(90 * i)\n                dd_slot_cut(x0 = (through_y && i == 1) ? -(arm + 1) : ps,\n                            x1 = arm + 1, z0 = z0, p = p);\n\n        // magnet pocket on the side that faces the drawer floor in use\n        if (!through_y && md > 0 && md <= min(aw, 2 * ps) - 1) {\n            mh = dd(p, \"magnet_h\");\n            if (cap > 0) translate([0, 0, h - mh]) cylinder(d = md, h = mh + 1, $fn = 48);\n            else translate([0, 0, -DD_EPS]) cylinder(d = md, h = mh + DD_EPS, $fn = 48);\n        }\n    }\n}\n\nmodule dd_connector_outline(arms, p, corner_r = 0) {\n    aw = dd_arm_w(p);\n    rc = min(corner_r, dd_corner_r_max(p));\n    difference() {\n        dd_round_convex(dd(p, \"edge_r\"))\n        // a fillet longer than the free arm would swallow the arm ends\n        dd_round_concave(min(dd(p, \"fillet\"), dd(p, \"arm\") - aw / 2))\n        union() {\n            square(aw, center = true);\n            for (i = [0:3]) if (arms[i])\n                rotate(90 * i) translate([0, -aw / 2]) square([dd(p, \"arm\"), aw]);\n        }\n        // outer corners between two missing arms\n        if (rc > 0) for (i = [0:3]) if (!arms[i] && !arms[(i + 1) % 4])\n            rotate(90 * i) translate([aw / 2 - rc, aw / 2 - rc]) difference() {\n                square(rc + 1);\n                circle(r = rc, $fn = 64);\n            }\n    }\n}\n\n// one slot along +X from x0 to x1, open at the top\nmodule dd_slot_cut(x0, x1, z0, p) {\n    h    = dd(p, \"height\");\n    sw   = dd_slot_w(p);\n    li   = dd(p, \"lead_in\");\n    efc  = dd(p, \"efc\");\n    len  = x1 - x0;\n\n    translate([x0, -sw / 2, z0]) cube([len, sw, h - z0 + 1]);\n\n    if (li > 0) hull() {\n        translate([x0, -sw / 2, h - li]) cube([len, sw, DD_EPS]);\n        translate([x0, -sw / 2 - li, h]) cube([len, sw + 2 * li, 1]);\n    }\n    // only where the slot touches the print bed\n    if (z0 < 0 && efc > 0) hull() {\n        translate([x0, -sw / 2 - efc, -1]) cube([len, sw + 2 * efc, 1]);\n        translate([x0, -sw / 2, efc]) cube([len, sw, DD_EPS]);\n    }\n}\n\n// footprint size, used to space copies on the plate\nfunction dd_connector_size(p) = 2 * dd(p, \"arm\");\n\n// A connector as it sits in the drawer (cap on top), for assembly previews.\n// The slots stay open so the walls show inside them; through = \"x\"|\"y\"|\"\" for slip-on.\nmodule dd_connector_installed(arms, through = \"\", cap = 0, p = dd_profile(), corner_r = 0) {\n    h   = dd(p, \"height\");\n    arm = dd(p, \"arm\");\n    ps  = dd_pocket_start(p);\n    sw  = dd_slot_w(p);\n    linear_extrude(h - cap) difference() {\n        dd_connector_outline(arms, p, corner_r);\n        for (i = [0:3]) if (arms[i])\n            rotate(90 * i) translate([ps, -sw / 2]) square([arm + 1 - ps, sw]);\n        if (through != \"\")\n            rotate(through == \"x\" ? 0 : 90) square([2 * arm + 2, sw], center = true);\n    }\n    if (cap > 0) translate([0, 0, h - cap]) linear_extrude(cap) dd_connector_outline(arms, p, corner_r);\n}\n\n// =============================================================================\n//  Walls\n// =============================================================================\n// Built standing: X = length, Y = thickness (centred), Z = height.\n\n// label / label2: engraved into the wall ends that disappear in the connectors,\n// label upright at +X (the parts-list letter), label2 running upwards at -X (the length).\nmodule dd_wall(length, p = dd_profile(), height = undef, pattern = \"none\",\n               cell = 8, web = 2, margin_side = -1, margin_tb = 5,\n               end_chamfer = 0.5, grip = 0, label = \"\", label2 = \"\") {\n    h  = is_undef(height) ? dd_wall_height(p) : height;\n    t  = dd(p, \"wall_t\");\n    // keep the pattern out of the connector pockets\n    ms = margin_side < 0 ? dd(p, \"insert\") + 2 : margin_side;\n\n    difference() {\n        linear_extrude(h) dd_wall_2d(length, t, end_chamfer);\n        dd_wall_pattern(length, t, h, pattern, cell, web, ms,\n                        margin_tb, margin_tb + grip);\n        if (grip > 0)\n            translate([0, 0, h]) rotate([90, 0, 0])\n                cylinder(r = grip, h = t + 2, center = true, $fn = 48);\n        dd_wall_labels(length, t, h, dd(p, \"insert\") - dd(p, \"end_gap\"), label, label2);\n    }\n}\n\nmodule dd_wall_labels(l, t, h, lw, label, label2) {\n    dep = min(0.4, t / 4);\n    both = l >= 2 * lw + 2;\n    module engrave(x, z, s, txt, up)\n        translate([x, -t / 2 + dep, z]) rotate([90, 0, 0]) linear_extrude(dep + 1)\n            rotate(up ? 90 : 0) text(txt, size = s, halign = \"center\", valign = \"center\");\n    if (label != \"\") {\n        s = min(7, (both ? lw : l) - 4, h / 3);\n        if (s >= 2) engrave(both ? l / 2 - lw / 2 : 0, h / 2, s, label, false);\n    }\n    if (label2 != \"\" && both) {\n        s = min(4, lw - 4, (h - 8) / (0.75 * len(label2) + 1));\n        if (s >= 2) engrave(-l / 2 + lw / 2, h / 2, s, label2, true);\n    }\n}\n\nmodule dd_wall_2d(l, t, c) {\n    ce = min(c, t / 2 - 0.01);\n    if (ce > 0)\n        polygon([\n            [-l/2 + ce, -t/2], [ l/2 - ce, -t/2], [ l/2, -t/2 + ce], [ l/2,  t/2 - ce],\n            [ l/2 - ce,  t/2], [-l/2 + ce,  t/2], [-l/2,  t/2 - ce], [-l/2, -t/2 + ce]\n        ]);\n    else\n        square([l, t], center = true);\n}\n\n// Hex or circle pattern with a constant web between the holes.\nmodule dd_wall_pattern(l, t, h, pattern, cell, web, ms, mb, mt) {\n    if (pattern == \"hex\" || pattern == \"circle\") {\n        hex   = pattern == \"hex\";\n        D     = hex ? cell * sqrt(3) + web : 2 * cell + web;  // vertical pitch\n        ext_x = cell;\n        ext_z = hex ? cell * sqrt(3) / 2 : cell;\n        max_w = l - 2 * ms - 2 * ext_x;\n        max_h = h - mb - mt - 2 * ext_z;\n        stagger = max_h >= D / 2;\n        sx    = stagger ? D * sqrt(3) / 2 : 2 * cell + web;\n        cols  = max_w >= 0 ? floor(max_w / sx) + 1 : 0;\n        st    = stagger && cols > 1;\n        rows  = max_h >= 0 ? floor((max_h - (st ? D / 2 : 0)) / D) + 1 : 0;\n\n        if (cols > 0 && rows > 0) {\n            pw = (cols - 1) * sx;\n            ph = (rows - 1) * D + (st ? D / 2 : 0);\n            z0 = mb + ext_z + (max_h - ph) / 2;\n            for (c = [0 : cols - 1], r = [0 : rows - 1])\n                translate([-pw / 2 + c * sx, 0, z0 + r * D + (st && c % 2 == 1 ? D / 2 : 0)])\n                    rotate([90, 0, 0])\n                        cylinder(r = cell, h = t + 2, center = true, $fn = hex ? 6 : 32);\n        }\n    }\n}\n\n// =============================================================================\n//  Rails (\"Raster Wall\") – glued or screwed to the drawer side\n// =============================================================================\n// Built flat: X = length, Y = width (= height in the drawer), Z = thickness.\n// Teeth form slots of the system slot width. teeth_offset = position of the\n// first tooth from x = 0; -1 centres the pattern. Joined rails use explicit\n// offsets so the slot pitch continues across the joint.\n\nfunction dd_rail_pitch(p, tooth_t = 2) = tooth_t + dd_slot_w(p);\n\nfunction dd_rail_center_offset(length, p, tooth_t = 2) =\n    let(sw = dd_slot_w(p), pitch = tooth_t + sw,\n        n = max(1, floor((length + sw) / pitch)),\n        used = n * tooth_t + (n - 1) * sw)\n    (length - used) / 2;\n\nmodule dd_rail(length, width, p = dd_profile(), plate = 2.5, tooth_t = 2,\n               tooth_h = 6, tooth_chamfer = 0.6, tooth_fillet = 0.5,\n               teeth_offset = -1, teeth = true, tongue = true, socket = true,\n               tongue_len = 2, tongue_w = -1, tongue_chamfer = 1,\n               tol_w = 1, tol_d = 0.5, tol_z = 0.1,\n               screws = 3, screw_d = 3.2, head_d = 6.5) {\n    sw    = dd_slot_w(p);\n    pitch = tooth_t + sw;\n    x0    = teeth_offset >= 0 ? teeth_offset : dd_rail_center_offset(length, p, tooth_t);\n    n     = floor((length - x0 - tooth_t) / pitch) + 1;\n    tw    = tongue_w < 0 ? max(width - 12, width * 0.6) : min(tongue_w, width - 4);\n    zt    = plate / 2 - tol_z / 2;\n    zs    = plate / 2 + tol_z / 2;\n\n    difference() {\n        union() {\n            cube([length, width, plate]);\n            if (tongue)\n                translate([length, (width - tw) / 2, 0]) linear_extrude(zt)\n                    polygon([[0, 0], [tongue_len, tongue_chamfer],\n                             [tongue_len, tw - tongue_chamfer], [0, tw]]);\n            if (teeth && n > 0)\n                for (i = [0 : n - 1])\n                    translate([x0 + i * pitch, 0, plate - DD_EPS])\n                        dd_rail_tooth(width, tooth_t, tooth_h, tooth_chamfer, tooth_fillet);\n        }\n        if (socket) {\n            bw = tw + 2 * tol_w;\n            translate([-DD_EPS, (width - bw) / 2, -DD_EPS])\n                cube([tongue_len + tol_d + DD_EPS, bw, zs + DD_EPS]);\n        }\n        // screws sit in the middle of a slot so they damage as few teeth as possible\n        if (screws > 0) for (s = [1 : screws]) {\n            // nearest slot, kept on the rail when it is short\n            k  = max(0, min(n - 2, round((length * s / (screws + 1) - x0 - tooth_t - sw / 2) / pitch)));\n            xs = x0 + tooth_t + sw / 2 + k * pitch;\n            cs = min(1.5, plate - 0.4);\n            translate([xs, width / 2, 0]) {\n                translate([0, 0, -1]) cylinder(d = screw_d, h = plate + 2, $fn = 32);\n                translate([0, 0, plate - cs]) cylinder(d1 = screw_d, d2 = head_d, h = cs + DD_EPS, $fn = 32);\n                translate([0, 0, plate]) cylinder(d = head_d + 0.5, h = tooth_h + 1, $fn = 32);\n            }\n        }\n    }\n}\n\n// One tooth across the full rail width, with lead-in chamfer and base fillets.\n// Keep tooth_fillet <= the wall end chamfer so walls still reach the plate.\nmodule dd_rail_tooth(width, tt, th, ch, fr) {\n    c = max(0, min(ch, tt / 2 - 0.2, th - 0.5));\n    translate([0, width, 0]) rotate([90, 0, 0]) linear_extrude(width) {\n        polygon([[0, 0], [tt, 0], [tt, th - c], [tt - c, th], [c, th], [0, th - c]]);\n        if (fr > 0) {\n            translate([tt, 0]) dd_fillet_2d(fr);\n            mirror([1, 0]) dd_fillet_2d(fr);\n        }\n    }\n}\n\n// =============================================================================\n//  Label clip\n// =============================================================================\n// Slides onto the top edge of a wall; the slanted face takes a marker, a sticker\n// or an engraved text. Built in print orientation: the profile lies on the bed\n// (X = across the wall, Y = up in use) and is extruded by the clip width.\n\nmodule dd_label_clip(width = 40, p = dd_profile(), face = 12, angle = 45, grip = 8,\n                     wall = 1.2, fit = 0.15, label = \"\", text_size = 5) {\n    gap = dd(p, \"wall_t\") + fit;\n    d   = [-cos(angle), -sin(angle)];   // down the face, away from the wall\n    n   = [-sin(angle),  cos(angle)];   // face normal\n    hp  = [-gap / 2 - wall, wall];      // hinge: top front corner of the clip\n    difference() {\n        linear_extrude(width) {\n            difference() {\n                translate([-gap / 2 - wall, -grip]) square([gap + 2 * wall, grip + wall]);\n                translate([-gap / 2, -grip - 1]) square([gap, grip + 1]);\n            }\n            // the hull fills the joint, so face and clip share more than one edge\n            hull() {\n                translate(hp - [0, wall]) square([wall, wall]);\n                polygon([hp, hp + face * d, hp + face * d + wall * n, hp + wall * n]);\n            }\n        }\n        if (label != \"\") {\n            c = hp + wall * n + d * face / 2;\n            dep = min(0.4, wall / 3);\n            multmatrix([[0, -d[0], n[0], c[0]], [0, -d[1], n[1], c[1]], [1, 0, 0, width / 2], [0, 0, 0, 1]])\n                translate([0, 0, -dep]) linear_extrude(dep + 1)\n                    text(label, size = min(text_size, face - 3), halign = \"center\", valign = \"center\");\n        }\n    }\n}\n\n// footprint of one clip on the bed (x, y)\nfunction dd_label_clip_size(p, face = 12, angle = 45, grip = 8, wall = 1.2) =\n    [dd(p, \"wall_t\") + 0.15 + 2 * wall + face * cos(angle) + wall, grip + wall + face * sin(angle) + wall];\n\n// =============================================================================\n//  Tolerance test\n// =============================================================================\n// A bar with one slot per tolerance (value engraved next to it) plus a short\n// test wall. Print both, find the slot that fits best, use that tolerance.\n\nmodule dd_tolerance_test(p = dd_profile(), tols = [0.1, 0.15, 0.2, 0.25, 0.3],\n                         height = 12, depth = 20, land = 8, base = 1.2,\n                         coupon = true) {\n    t = dd(p, \"wall_t\");\n    n = len(tols);\n    function x_at(i) = land * (i + 1) + i * t + dd_sum(tols, i);\n    L = x_at(n);\n\n    difference() {\n        cube([L, depth, height]);\n        for (i = [0 : n - 1]) {\n            translate([x_at(i), -1, base]) cube([t + tols[i], depth + 2, height]);\n            translate([x_at(i) - land / 2, depth / 2, height - 0.6])\n                linear_extrude(1) rotate(90)\n                    text(str(tols[i]), size = min(3.2, land * 0.42),\n                         halign = \"center\", valign = \"center\");\n        }\n    }\n    if (coupon)\n        translate([L / 2, depth + 8, 0])\n            dd_wall(30, p, height = height + 4, end_chamfer = 0.3);\n}\n\n// =============================================================================\n//  Helpers\n// =============================================================================\n\nfunction dd_sum(v, n) = n <= 0 ? 0 : v[n - 1] + dd_sum(v, n - 1);\n\nmodule dd_round_concave(r) { if (r > 0) offset(r = -r) offset(r = r) children(); else children(); }\nmodule dd_round_convex(r)  { if (r > 0) offset(r = r) offset(delta = -r) children(); else children(); }\n\nmodule dd_fillet_2d(r) {\n    difference() {\n        square([r, r]);\n        translate([r, r]) circle(r = r, $fn = 24);\n    }\n}\n\n// Arrange `count` copies of the child in rows that fit max_w, centred on the origin.\nmodule dd_grid(count, pitch_x, pitch_y, max_w = 240) {\n    cols = max(1, min(count, floor((max_w + DD_EPS) / pitch_x)));\n    rows = ceil(count / cols);\n    for (i = [0 : count - 1])\n        translate([((i % cols) - (cols - 1) / 2) * pitch_x,\n                   (floor(i / cols) - (rows - 1) / 2) * pitch_y, 0])\n            children();\n}\n\n// Lay a standing wall flat on the bed.\nmodule dd_lay_flat(t) { translate([0, 0, t / 2]) rotate([90, 0, 0]) children(); }\n\n// =============================================================================\n//  Drawer layout – used by drawer_designer.scad\n// =============================================================================\n// The drawer is cut into strips (u axis), each strip into compartments\n// (v axis). Strip walls run through from edge to edge. Strips run front to\n// back unless `swap` is set. dd_layout() works in u/v and returns world\n// coordinates: x = width, y = depth, front edge at y = 0.\n// Directions: 0 = +X, 1 = +Y, 2 = -X, 3 = -Y.\n\nfunction dd_le() = 0.01;   // a function, so inlined single files can use it before this line\n\n// ---- string parsing (\"1,1,2\" and \"2,1:2\") ----------------------------------\nfunction dd_str_split(s, sep, i = 0, cur = \"\", acc = []) =\n    i >= len(s) ? concat(acc, [cur])\n  : s[i] == sep ? dd_str_split(s, sep, i + 1, \"\", concat(acc, [cur]))\n  : dd_str_split(s, sep, i + 1, str(cur, s[i]), acc);\n\nfunction dd_str_num(s) = dd__num([for (c = s) if (c != \" \") c], 0, 0, 0, 1);\nfunction dd__num(c, i, v, frac, sign) =\n    i >= len(c) ? sign * v\n  : c[i] == \"-\" ? dd__num(c, i + 1, v, frac, -1)\n  : c[i] == \".\" ? dd__num(c, i + 1, v, max(frac, 0.1), sign)\n  : let(d = ord(c[i]) - 48)\n    d < 0 || d > 9 ? dd__num(c, i + 1, v, frac, sign)\n  : frac > 0 ? dd__num(c, i + 1, v + d * frac, frac / 10, sign)\n             : dd__num(c, i + 1, v * 10 + d, 0, sign);\n\n// \"1,1,2\" -> [1,1,2]\nfunction dd_parse_weights(s) =\n    let(v = [for (p = dd_str_split(s, \",\")) let(n = dd_str_num(p)) if (n > 0) n])\n    len(v) ? v : [1];\n\n// \"2,1:2\" -> one weight list per strip; a plain number n = n equal parts.\n// Missing entries repeat the last one.\nfunction dd_parse_splits(s, n) =\n    let(per = [for (it = dd_str_split(s, \",\"))\n                  let(p = [for (x = dd_str_split(it, \":\")) let(v = dd_str_num(x)) if (v > 0) v])\n                  len(p) == 0 ? [1]\n                : len(p) == 1 ? [for (k = [1 : max(1, round(p[0]))]) 1] : p])\n    [for (i = [0 : n - 1]) per[min(i, len(per) - 1)]];\n\n// ---- small list helpers ----------------------------------------------------\nfunction dd_has_num(l, x) = len([for (y = l) if (abs(y - x) < dd_le()) 1]) > 0;\nfunction dd_sort(a) =\n    len(a) <= 1 ? a :\n    let(p = a[floor(len(a) / 2)])\n    concat(dd_sort([for (x = a) if (x < p) x]), [for (x = a) if (x == p) x], dd_sort([for (x = a) if (x > p) x]));\nfunction dd_uniq_sorted(l) = [for (k = [0 : 1 : len(l) - 1]) if (k == 0 || l[k] - l[k - 1] > dd_le()) l[k]];\nfunction dd_unique(l, i = 0, acc = []) =\n    i >= len(l) ? acc : dd_unique(l, i + 1, len([for (y = acc) if (y == l[i]) 1]) ? acc : concat(acc, [l[i]]));\nfunction dd_count(l, x) = len([for (y = l) if (y == x) 1]);\nfunction dd_nearest(l, v) = len(l) == 0 ? v : let(d = [for (x = l) abs(x - v)]) l[search(min(d), d)[0]];\nfunction dd_fmt(v, d = 1) = str(round(v * pow(10, d)) / pow(10, d));\n\n// ---- options ---------------------------------------------------------------\nfunction dd_layout_opts(width = 400, depth = 300, height = 60, strips = \"1,1,1\",\n                        splits = \"2\", swap = false, edge = \"frame\", slip = false,\n                        max_len = 240, edge_gap = 0.5, clamp_gap = 1,\n                        rail_plate = 2.5, tooth_t = 2, tooth_h = 6, corner_r = 0) = [\n    [\"width\", width], [\"depth\", depth], [\"height\", height], [\"strips\", strips],\n    [\"splits\", splits], [\"swap\", swap], [\"edge\", edge], [\"slip\", slip],\n    [\"max_len\", max_len], [\"edge_gap\", edge_gap], [\"clamp_gap\", clamp_gap],\n    [\"rail_plate\", rail_plate], [\"tooth_t\", tooth_t], [\"tooth_h\", tooth_h], [\"corner_r\", corner_r]\n];\n\n// outer radius of the frame corners for a drawer with rounded inner corners\nfunction dd_layout_corner_r(p, o) =\n    dd(o, \"edge\") == \"frame\" && dd(o, \"corner_r\") > 0\n        ? max(0, min(dd(o, \"corner_r\") - dd(o, \"edge_gap\"), dd_corner_r_max(p))) : 0;\n\n// Rail tooth pattern along one world axis. Rails on the left/right sides run\n// the full depth; front/back rails sit between them.\nfunction dd_lay_rail_span(axis, W, D, rt) =\n    axis == \"y\" ? [0.5, D - 1] : [rt + 0.5, W - 2 * rt - 1];\n\nfunction dd_lay_rail_slots(axis, W, D, rt, tt, p) =\n    let(sp = dd_lay_rail_span(axis, W, D, rt), sw = dd_slot_w(p), pitch = tt + sw,\n        n = max(1, floor((sp[1] + sw) / pitch)),\n        first = sp[0] + dd_rail_center_offset(sp[1], p, tt))\n    [for (k = [0 : 1 : n - 2]) first + tt + sw / 2 + k * pitch];\n\n// interior wall centres between c0 and c1 so the *net* compartments follow the weights\nfunction dd_lay_split(c0, c1, off, w, t) =\n    let(n = len(w), net = (c1 - off) - (c0 + off) - (n - 1) * t, tot = dd_sum(w, n))\n    [for (k = [1 : 1 : n - 1]) c0 + off + net * dd_sum(w, k) / tot + (k - 1) * t + t / 2];\n\n// node: [u, v, dirs, kind (\"conn\"|\"edge\"), type, through (\"u\"|\"v\"|\"\"), end offset, joint]\nfunction dd_lay_node(u, v, d, edge, slip, end_off, joint = false) =\n    let(n = d[0] + d[1] + d[2] + d[3])\n    n == 1 && (edge == \"rail\" || edge == \"none\") ? [u, v, d, \"edge\", \"\", \"\", end_off, false] :\n    let(t0 = n == 4 ? \"cross\" : n == 3 ? \"tee\" : n == 1 ? \"end\"\n           : (d[0] == 1 && d[2] == 1) || (d[1] == 1 && d[3] == 1) ? \"straight\" : \"corner\",\n        th = slip && n >= 3 ? (d[1] == 1 && d[3] == 1 ? \"v\" : \"u\") : \"\")\n    [u, v, d, \"conn\", th == \"\" ? t0 : (n == 4 ? \"slip_cross\" : \"slip_tee\"), th, 0, joint];\n\n// slip-on: positions along a through wall where it should end at a crossing instead of\n// getting a joiner squeezed between two connectors (greedy, each piece <= maxlen)\nfunction dd_lay_slip_cuts(stops, prev, last, ins, maxlen, acc = []) =\n    last - prev - 2 * ins <= maxlen ? acc :\n    let(ok = [for (u = stops) if (u > prev + dd_le() && u < last - dd_le() && u - prev - 2 * ins <= maxlen) u])\n    len(ok) == 0 ? acc : dd_lay_slip_cuts(stops, max(ok), last, ins, maxlen, concat(acc, [max(ok)]));\n\nfunction dd_lay_find(nodes, u, v) =\n    let(m = [for (n = nodes) if (abs(n[0] - u) < dd_le() && abs(n[1] - v) < dd_le()) n]) m[0];\n\nfunction dd_lay_align(v, m, i = 0, acc = []) =\n    i >= len(v) ? acc :\n    dd_lay_align(v, m, i + 1, concat(acc, [i == 0 ? v[0] :\n        [for (y = v[i]) let(prev = acc[i - 1], d = [for (q = prev) abs(q - y)])\n            len(prev) && min(d) < m ? prev[search(min(d), d)[0]] : y]]));\n\nfunction dd_lay_off(n, ins) = n[3] == \"edge\" ? n[6] : ins;\n\n// joints that split a too long wall, kept clear of other connectors on the line\nfunction dd_lay_kpieces(total, ins, maxlen, k = 1) =\n    (total - (k - 1) * 2 * ins) / k <= maxlen || k >= 50 ? k : dd_lay_kpieces(total, ins, maxlen, k + 1);\n\nfunction dd_lay_joints(u0, u1, o0, o1, ins, maxlen, avoid, clear) =\n    let(total = u1 - u0 - o0 - o1, k = dd_lay_kpieces(total, ins, maxlen),\n        pl = (total - (k - 1) * 2 * ins) / k)\n    k <= 1 ? [] : dd__joints(1, k, u0 + o0, pl, ins, maxlen, avoid, clear, []);\n\nfunction dd__joints(j, k, start, pl, ins, maxlen, avoid, clear, acc) =\n    j >= k ? acc :\n    let(ideal = start + j * pl + (2 * j - 1) * ins,\n        prev  = len(acc) ? acc[len(acc) - 1] + ins : start,\n        cands = [for (d = [0 : 2.5 : 80], c = [ideal + d, ideal - d])\n                    if (len([for (a = avoid) if (abs(a - c) < clear) 1]) == 0 && c - ins - prev <= maxlen) c])\n    dd__joints(j + 1, k, start, pl, ins, maxlen, avoid, clear, concat(acc, [len(cands) ? cands[0] : ideal]));\n\n// cuts: [[u, offset], ...] -> [pieces [[ori, c, s, e]], joints [[ori, c, u]]]\nfunction dd_lay_line(ori, c, cuts, avoid, ins, maxlen, clear) =\n    let(segs = [for (k = [0 : 1 : len(cuts) - 2])\n        let(u0 = cuts[k][0], o0 = cuts[k][1], u1 = cuts[k + 1][0], o1 = cuts[k + 1][1],\n            js = dd_lay_joints(u0, u1, o0, o1, ins, maxlen,\n                               [for (a = avoid) if (a > u0 + dd_le() && a < u1 - dd_le()) a], clear),\n            b  = concat([u0 + o0], [for (jc = js) each [jc - ins, jc + ins]], [u1 - o1]))\n        [[for (m = [0 : 2 : len(b) - 2]) [ori, c, b[m], b[m + 1]]], js]])\n    [[for (s = segs) each s[0]], [for (s = segs) for (jc = s[1]) [ori, c, jc]]];\n\n// Returns a key/value list:\n//   walls  [[axis \"x\"|\"y\", c, start, end, length], ...]   axis = direction the wall runs\n//   conns  [[type, x, y, dirs, through \"x\"|\"y\"|\"\", joint], ...]\n//   rails  [[side \"L\"|\"R\"|\"F\"|\"B\", start, end, length, teeth_offset, tongue, socket, screws], ...]\n//   comps  [[x0, y0, x1, y1, net_w, net_d], ...]\n//   wall_h, rail_w, rail_t, inset\nfunction dd_layout(p, o) =\n    let(\n        W = dd(o, \"width\"), D = dd(o, \"depth\"), swap = dd(o, \"swap\"),\n        U = swap ? D : W, V = swap ? W : D,\n        edge = dd(o, \"edge\"), slip = dd(o, \"slip\"), frame = edge == \"frame\", rail = edge == \"rail\",\n        maxlen = dd(o, \"max_len\"),\n        t = dd(p, \"wall_t\"), aw = dd_arm_w(p), ins = dd_wall_inset(p),\n        tt = dd(o, \"tooth_t\"), rt = dd(o, \"rail_plate\") + dd(o, \"tooth_h\"),\n        B = (frame || edge == \"endcap\") ? aw / 2 + dd(o, \"edge_gap\") : 0,\n        base = frame ? B : 0,\n        eoff = frame ? t / 2 : rail ? rt : 0,\n        end_off = rail ? dd(o, \"rail_plate\") + dd(p, \"end_gap\") : dd(o, \"clamp_gap\"),\n        clear = 2 * dd(p, \"arm\") + 2,\n        cols = dd_parse_weights(dd(o, \"strips\")), ncol = len(cols),\n        rows = dd_parse_splits(dd(o, \"splits\"), ncol),\n        su = rail ? dd_lay_rail_slots(swap ? \"y\" : \"x\", W, D, rt, tt, p) : [],\n        sv = rail ? dd_lay_rail_slots(swap ? \"x\" : \"y\", W, D, rt, tt, p) : [],\n        us = concat([base], [for (x = dd_lay_split(base, U - base, eoff, cols, t)) rail ? dd_nearest(su, x) : x], [U - base]),\n        // compartment borders that almost line up with the neighbouring strip snap onto it,\n        // otherwise the arms of the two connectors on the strip wall would collide\n        vsi = dd_lay_align([for (i = [0 : ncol - 1])\n                  [for (y = dd_lay_split(base, V - base, eoff, rows[i], t)) rail ? dd_nearest(sv, y) : y]],\n                  dd_min_conn_gap(p)),\n\n        // nodes on the through-running strip walls (and the frame sides)\n        vjs = frame ? [for (j = [0 : ncol]) j] : [for (j = [1 : 1 : ncol - 1]) j],\n        vstops = [for (j = [0 : ncol])\n                     dd_uniq_sorted(dd_sort(concat([B, V - B], j >= 1 ? vsi[j - 1] : [], j < ncol ? vsi[j] : [])))],\n        // slip-on: crossings where too long through walls end (they become normal connectors)\n        vcut = [for (j = [0 : ncol]) slip ? dd_lay_slip_cuts(vstops[j], B, V - B, ins, maxlen) : []],\n        fcut = slip && frame ? dd_lay_slip_cuts([for (k = [1 : 1 : ncol - 1]) us[k]], us[0], us[ncol], ins, maxlen) : [],\n        vnodes = [for (j = vjs, v = vstops[j])\n            let(isEnd = abs(v - B) < dd_le() || abs(v - (V - B)) < dd_le(),\n                slipHere = slip && !(isEnd ? dd_has_num(fcut, us[j]) : dd_has_num(vcut[j], v)),\n                d = [(j < ncol && dd_has_num(vsi[j], v)) || (frame && isEnd && j < ncol) ? 1 : 0,\n                     v < V - B - dd_le() ? 1 : 0,\n                     (j >= 1 && dd_has_num(vsi[j - 1], v)) || (frame && isEnd && j > 0) ? 1 : 0,\n                     v > B + dd_le() ? 1 : 0])\n            dd_lay_node(us[j], v, d, edge, slipHere, end_off)],\n        // compartment walls that end at the drawer side\n        hnodes = frame ? [] : concat(\n            [for (v = vsi[0]) dd_lay_node(B, v, [1, 0, 0, 0], edge, slip, end_off)],\n            [for (v = vsi[ncol - 1]) dd_lay_node(U - B, v, [0, 0, 1, 0], edge, slip, end_off)]),\n        nodes = concat(vnodes, hnodes),\n\n        vlines = [for (j = vjs)\n            dd_lay_line(\"v\", us[j],\n                [for (v = vstops[j]) let(n = dd_lay_find(nodes, us[j], v))\n                    if (abs(v - B) < dd_le() || abs(v - (V - B)) < dd_le() || n[5] != \"v\") [v, dd_lay_off(n, ins)]],\n                vstops[j], ins, maxlen, clear)],\n        hlines = [for (i = [0 : ncol - 1], v = vsi[i])\n            let(ua = i == 0 ? B : us[i], ub = i == ncol - 1 ? U - B : us[i + 1])\n            dd_lay_line(\"u\", v, [[ua, dd_lay_off(dd_lay_find(nodes, ua, v), ins)],\n                                 [ub, dd_lay_off(dd_lay_find(nodes, ub, v), ins)]],\n                        [], ins, maxlen, clear)],\n        flines = frame ? [for (v = [B, V - B])\n            dd_lay_line(\"u\", v, [for (k = [0 : ncol]) if (k == 0 || k == ncol || !slip || dd_has_num(fcut, us[k])) [us[k], ins]],\n                        us, ins, maxlen, clear)] : [],\n        lines = concat(vlines, hlines, flines),\n        pieces = [for (l = lines) each l[0]],\n        joints = [for (l = lines, jn = l[1])\n            dd_lay_node(jn[0] == \"u\" ? jn[2] : jn[1], jn[0] == \"u\" ? jn[1] : jn[2],\n                        jn[0] == \"u\" ? [1, 0, 1, 0] : [0, 1, 0, 1], edge, false, 0, true)],\n        lconns = concat([for (n = nodes) if (n[3] == \"conn\") n], joints),\n\n        // world coordinates\n        walls = [for (pc = pieces)\n            [(pc[0] == \"u\") != swap ? \"x\" : \"y\", pc[1], pc[2], pc[3], pc[3] - pc[2]]],\n        cr = dd_layout_corner_r(p, o),\n        isCorner = function(n) n[4] == \"corner\" && cr > 0\n            && (abs(n[0] - B) < dd_le() || abs(n[0] - (U - B)) < dd_le())\n            && (abs(n[1] - B) < dd_le() || abs(n[1] - (V - B)) < dd_le()),\n        conns = [for (n = lconns)\n            [isCorner(n) ? \"corner_round\" : n[4], swap ? n[1] : n[0], swap ? n[0] : n[1],\n             swap ? [n[2][1], n[2][0], n[2][3], n[2][2]] : n[2],\n             n[5] == \"\" ? \"\" : ((n[5] == \"u\") != swap ? \"x\" : \"y\"), n[7]]],\n\n        // rails: one or more pieces per drawer side that has wall ends\n        wall_h = dd_wall_height(p, slip),\n        rail_w = min(wall_h, dd(o, \"height\")),\n        uEdges = rail ? [len(vsi[0]) > 0, len(vsi[ncol - 1]) > 0] : [false, false],\n        vEdges = rail ? [ncol > 1, ncol > 1] : [false, false],\n        sides = [for (s = [[\"L\", swap ? vEdges[0] : uEdges[0]], [\"R\", swap ? vEdges[1] : uEdges[1]],\n                           [\"F\", swap ? uEdges[0] : vEdges[0]], [\"B\", swap ? uEdges[1] : vEdges[1]]]) if (s[1]) s[0]],\n        pitch = tt + dd_slot_w(p),\n        rails = [for (side = sides)\n            let(axis = side == \"L\" || side == \"R\" ? \"y\" : \"x\",\n                sp = dd_lay_rail_span(axis, W, D, rt),\n                first = sp[0] + dd_rail_center_offset(sp[1], p, tt),\n                k = ceil(sp[1] / maxlen), pl = sp[1] / k)\n            for (i = [0 : k - 1])\n                let(ps = sp[0] + i * pl)\n                [side, ps, ps + pl, pl, ((first - ps) % pitch + pitch) % pitch, i < k - 1, i > 0,\n                 max(1, round(pl / 70))]],\n\n        // compartments with their net (inside) size\n        comps = [for (i = [0 : ncol - 1])\n            let(vs = concat([base], vsi[i], [V - base]), u0 = us[i], u1 = us[i + 1])\n            for (k = [0 : len(vs) - 2])\n                let(v0 = vs[k], v1 = vs[k + 1],\n                    so = [for (c = [[u0, U], [u1, U], [v0, V], [v1, V]])\n                             abs(c[0]) < dd_le() || abs(c[0] - c[1]) < dd_le() ? (rail ? rt : 0) : t / 2],\n                    nu = u1 - u0 - so[0] - so[1], nv = v1 - v0 - so[2] - so[3])\n                swap ? [v0, u0, v1, u1, nv, nu] : [u0, v0, u1, v1, nu, nv]]\n    ) [\n        [\"walls\", walls], [\"conns\", conns], [\"rails\", rails], [\"comps\", comps],\n        [\"wall_h\", wall_h], [\"rail_w\", rail_w], [\"rail_t\", rt], [\"inset\", B]\n    ];\n\n// ---- parts list ------------------------------------------------------------\nfunction dd_wall_len_round(l) = floor(l * 10 + 0.05) / 10;\n\n// Connectors whose bodies overlap: on one line each reaches an arm length towards\n// its neighbour where it has an arm, half its width where it has none.\n// Returns the indices into dd(L, \"conns\") that collide with another connector.\nfunction dd_layout_clashes(L, p) =\n    let(cs = dd(L, \"conns\"), n = len(cs), arm = dd(p, \"arm\"), aw = dd_arm_w(p),\n        reach = function(d, i) d[i] ? arm : aw / 2,\n        hit = function(a, b)\n            let(sameY = abs(a[2] - b[2]) < dd_le(), sameX = abs(a[1] - b[1]) < dd_le(),\n                lo = sameY ? (a[1] < b[1] ? a : b) : (a[2] < b[2] ? a : b),\n                hi = lo == a ? b : a)\n            sameY ? hi[1] - lo[1] < reach(lo[3], 0) + reach(hi[3], 2) + 1 - dd_le()\n          : sameX ? hi[2] - lo[2] < reach(lo[3], 1) + reach(hi[3], 3) + 1 - dd_le()\n          : false)\n    [for (i = [0 : 1 : n - 1]) if (len([for (j = [0 : 1 : n - 1]) if (j != i && hit(cs[i], cs[j])) 1]) > 0) i];\n\n// [[kind \"c\"|\"w\"|\"r\", spec, qty], ...] – connectors, then walls (longest first), then rails\nfunction dd_layout_bom(L) =\n    let(conns = dd(L, \"conns\"), walls = dd(L, \"walls\"), rails = dd(L, \"rails\"),\n        ctypes = [for (c = conns) c[0]],\n        lens   = [for (w = walls) if (w[4] > 0) dd_wall_len_round(w[4])],\n        ulens  = dd_uniq_sorted(dd_sort(lens)),\n        rspec  = [for (r = rails) [round(r[3] * 100) / 100, round(r[4] * 100) / 100, r[5], r[6], r[7]]])\n    concat(\n        [for (t = dd_connector_types()) if (dd_count(ctypes, t) > 0) [\"c\", t, dd_count(ctypes, t)]],\n        [for (k = [len(ulens) - 1 : -1 : 0]) [\"w\", ulens[k], len([for (l = lens) if (abs(l - ulens[k]) < dd_le()) 1])]],\n        [for (r = dd_unique(rspec)) [\"r\", r, dd_count(rspec, r)]]);\n";
 
@@ -448,7 +625,7 @@ const $$ = s => [...document.querySelectorAll(s)];
 const EPS = 0.01;
 const r2 = v => Math.round(v * 100) / 100;
 const near = (a, b) => Math.abs(a - b) < EPS;
-const fmt = (v, d = 1) => Number(v).toLocaleString('de-DE', { maximumFractionDigits: d });
+const fmt = (v, d = 1) => Number(v).toLocaleString(LANG === 'en' ? 'en-US' : 'de-DE', { maximumFractionDigits: d });
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const STORE_KEY = 'dd-designer-v3';
@@ -463,20 +640,20 @@ const PROFILES_KEY = 'dd-designer-profiles';
 const PER_DRAWER = ['border', 'slip'];     // settings that belong to the drawer design, not to a profile
 
 const TYPES = {
-  cross:      { name: 'Kreuz', desc: '4 Wände treffen sich' },
-  tee:        { name: 'T-Stück', desc: '3 Wände' },
-  corner:     { name: 'Ecke', desc: '2 Wände im 90°-Winkel' },
-  corner_round: { name: 'Rahmenecke gerundet', desc: 'Außen gerundet für die Schubladenecke' },
-  straight:   { name: 'Gerade', desc: 'Verlängert eine geteilte Wand' },
-  end:        { name: 'Endstück', desc: 'Freies Wandende / am Rand' },
-  slip_cross: { name: 'Aufsteck-Kreuz durchgehend', desc: 'Auf durchgehende Wand gesteckt' },
-  slip_tee:   { name: 'Aufsteck-T durchgehend', desc: 'Auf durchgehende Wand gesteckt' },
+  cross:      { name: T('Kreuz'), desc: T('4 Wände treffen sich') },
+  tee:        { name: T('T-Stück'), desc: T('3 Wände') },
+  corner:     { name: T('Ecke'), desc: T('2 Wände im 90°-Winkel') },
+  corner_round: { name: T('Rahmenecke gerundet'), desc: T('Außen gerundet für die Schubladenecke') },
+  straight:   { name: T('Gerade'), desc: T('Verlängert eine geteilte Wand') },
+  end:        { name: T('Endstück'), desc: T('Freies Wandende / am Rand') },
+  slip_cross: { name: T('Aufsteck-Kreuz durchgehend'), desc: T('Auf durchgehende Wand gesteckt') },
+  slip_tee:   { name: T('Aufsteck-T durchgehend'), desc: T('Auf durchgehende Wand gesteckt') },
 };
 // With slip-on connectors every connector of the drawer carries the cap and is
 // pushed on from above, also where the walls end instead of running through.
 const cappedSet = t => S.settings.slip && !t.startsWith('slip');
-const typeName = t => (cappedSet(t) ? 'Aufsteck-' : '') + TYPES[t].name;
-const typeDesc = t => TYPES[t].desc + (cappedSet(t) ? ', Wände enden darin' : '');
+const typeName = t => (cappedSet(t) ? T('Aufsteck-') : '') + TYPES[t].name;
+const typeDesc = t => TYPES[t].desc + (cappedSet(t) ? T(', Wände enden darin') : '');
 const TYPE_ORDER = Object.keys(TYPES);
 
 function defaultSettings() {
@@ -485,7 +662,7 @@ function defaultSettings() {
            railPlate: 2.5, toothT: 2, toothH: 6 };
 }
 function defaultState() {
-  return { version: 3, name: 'Meine Schublade', drawer: { w: 400, d: 300, h: 60, r: 0 },
+  return { version: 3, name: T('Meine Schublade'), drawer: { w: 400, d: 300, h: 60, r: 0 },
            preset: '', profile: { ...DEFAULT_PROFILE }, settings: defaultSettings(), walls: [] };
 }
 
@@ -675,7 +852,7 @@ function analyze(S) {
           s = jc + g.inset;
         }
       }
-      if (k > 1) msgs.push({ lvl: 'info', text: `Eine ${fmt(total, 0)} mm lange Wand ist länger als ${fmt(st.maxLen, 0)} mm – in ${k} Teile mit Verlängerung geteilt.` });
+      if (k > 1) msgs.push({ lvl: 'info', text: T`Eine ${fmt(total, 0)} mm lange Wand ist länger als ${fmt(st.maxLen, 0)} mm – in ${k} Teile mit Verlängerung geteilt.` });
     }
   }
   for (const j of joints) { j.kind = 'conn'; j.type = 'straight'; j.joint = true; nodes.set('j' + j.x + ',' + j.y, j); }
@@ -687,8 +864,8 @@ function analyze(S) {
     if (pc.len <= 0) { pc.bad = true; negative++; }
     else if (pc.len < (pc.edge ? minEdgeLen : minLen)) { pc.bad = true; tooShort++; }
   }
-  if (negative) msgs.push({ lvl: 'err', text: `${negative} Wandstück(e) passen nicht – Verbinder liegen zu dicht beieinander (mind. ${fmt(minConnGap(g, p), 0)} mm Abstand).` });
-  if (tooShort) msgs.push({ lvl: 'warn', text: `${tooShort} zu kurze Wandstück(e) – rot markiert.` });
+  if (negative) msgs.push({ lvl: 'err', text: T`${negative} Wandstück(e) passen nicht – Verbinder liegen zu dicht beieinander (mind. ${fmt(minConnGap(g, p), 0)} mm Abstand).` });
+  if (tooShort) msgs.push({ lvl: 'warn', text: T`${tooShort} zu kurze Wandstück(e) – rot markiert.` });
 
   // connector bodies on the same line must not overlap: each reaches one arm length
   // towards the neighbour where it has an arm, half its width where it has none
@@ -707,7 +884,7 @@ function analyze(S) {
       }
     }
   }
-  if (collisions) msgs.push({ lvl: 'err', text: `${collisions}× überschneiden sich Verbinder – Wände auf einer Linie brauchen mind. ${fmt(minConnGap(g, p), 0)} mm Abstand (rot markiert).` });
+  if (collisions) msgs.push({ lvl: 'err', text: T`${collisions}× überschneiden sich Verbinder – Wände auf einer Linie brauchen mind. ${fmt(minConnGap(g, p), 0)} mm Abstand (rot markiert).` });
 
   // rails
   const rails = [];
@@ -719,7 +896,7 @@ function analyze(S) {
       if (!sl[axis].slots.some(c => Math.abs(c - v) < 0.05)) { n.offGrid = true; }
     }
     const off = [...nodes.values()].filter(n => n.offGrid).length;
-    if (off) msgs.push({ lvl: 'warn', text: `${off} Wandende(n) treffen keinen Schlitz der Schiene – mit „Auswählen" leicht verschieben.` });
+    if (off) msgs.push({ lvl: 'warn', text: T`${off} Wandende(n) treffen keinen Schlitz der Schiene – mit „Auswählen" leicht verschieben.` });
     const rw = Math.min(g.wallH, S.drawer.h);
     for (const side of ['L', 'R', 'T', 'B']) if (used.has(side)) {
       const axis = side === 'L' || side === 'R' ? 'y' : 'x';
@@ -739,12 +916,12 @@ function analyze(S) {
   const comps = findCompartments(S, g, H, V);
 
   // checks
-  if (p.height > S.drawer.h) msgs.push({ lvl: 'err', text: `Verbinder sind ${fmt(p.height)} mm hoch, die Schublade nur ${fmt(S.drawer.h)} mm.` });
-  else if (p.height > S.drawer.h - 3) msgs.push({ lvl: 'warn', text: `Nur ${fmt(S.drawer.h - p.height)} mm Luft über den Trennern – die Schublade könnte hängen bleiben.` });
+  if (p.height > S.drawer.h) msgs.push({ lvl: 'err', text: T`Verbinder sind ${fmt(p.height)} mm hoch, die Schublade nur ${fmt(S.drawer.h)} mm.` });
+  else if (p.height > S.drawer.h - 3) msgs.push({ lvl: 'warn', text: T`Nur ${fmt(S.drawer.h - p.height)} mm Luft über den Trennern – die Schublade könnte hängen bleiben.` });
   const longest = Math.max(0, ...pieces.map(x => x.len), ...rails.map(r => r.len));
-  if (S.settings.orient === 'flat' && longest > st.bed - 10) msgs.push({ lvl: 'warn', text: `Längstes Teil (${fmt(longest, 0)} mm) passt kaum aufs ${fmt(st.bed, 0)}-mm-Druckbett.` });
-  if (g.cornerWant > g.cornerMax + EPS) msgs.push({ lvl: 'warn', text: `Eckradius zu groß: Die Rahmenecken lassen sich nur bis ${fmt(g.cornerMax)} mm runden, sonst würden die Schlitze angeschnitten. Mehr Abstand zum Rand oder Endstücke helfen.` });
-  if (st.slip && p.cap === 0) msgs.push({ lvl: 'info', text: `Aufsteck-Modus: Alle Wände sind ${fmt(p.floor_t)} mm niedriger, damit die Aufsteck-Verbinder bündig sitzen.` });
+  if (S.settings.orient === 'flat' && longest > st.bed - 10) msgs.push({ lvl: 'warn', text: T`Längstes Teil (${fmt(longest, 0)} mm) passt kaum aufs ${fmt(st.bed, 0)}-mm-Druckbett.` });
+  if (g.cornerWant > g.cornerMax + EPS) msgs.push({ lvl: 'warn', text: T`Eckradius zu groß: Die Rahmenecken lassen sich nur bis ${fmt(g.cornerMax)} mm runden, sonst würden die Schlitze angeschnitten. Mehr Abstand zum Rand oder Endstücke helfen.` });
+  if (st.slip && p.cap === 0) msgs.push({ lvl: 'info', text: T`Aufsteck-Modus: Alle Wände sind ${fmt(p.floor_t)} mm niedriger, damit die Aufsteck-Verbinder bündig sitzen.` });
 
   const bom = buildBom(S, g, nodes, pieces, rails, comps.list.length);
   const conflicts = pieces.filter(pc => pc.bad).length + collisions;
@@ -1050,7 +1227,7 @@ function wallGapCheck(w, skipC = null) {
 // Runs the full analysis on the changed layout, so every rule of the system applies.
 const badPieces = St => analyze(St).conflicts;
 const breaksLayout = walls => badPieces({ ...S, walls }) > A.conflicts;
-const TOO_CLOSE = () => `Geht nicht – Verbinder würden sich überschneiden (mind. ${fmt(minConnGap(A.g, S.profile), 0)} mm Wandabstand).`;
+const TOO_CLOSE = () => T`Geht nicht – Verbinder würden sich überschneiden (mind. ${fmt(minConnGap(A.g, S.profile), 0)} mm Wandabstand).`;
 
 // ---------------------------------------------------------------------------
 // Rendering: SVG
@@ -1111,7 +1288,7 @@ function drawSVG() {
     for (let y = 50; y < D; y += 50) gp += `<line class="g-major" x1="0" y1="${y}" x2="${W}" y2="${y}"/>`;
   }
   out.push(gp);
-  out.push(`<text class="edge-label" x="${W / 2}" y="${D + dw + 16 / s}" style="font-size:${11 / s}px">Vorne</text>`);
+  out.push(`<text class="edge-label" x="${W / 2}" y="${D + dw + 16 / s}" style="font-size:${11 / s}px">${T('Vorne')}</text>`);
 
   // compartments
   A.comps.list.forEach((R, i) => {
@@ -1228,74 +1405,74 @@ function drawPanels() {
   $('#tParts').textContent = b.parts;
   $('#tComp').textContent = A.comps.list.length;
   $('#tGrams').textContent = fmt(b.grams, 0);
-  $('#bomCount').textContent = b.parts ? `${b.parts} Teile` : '';
+  $('#bomCount').textContent = b.parts ? T`${b.parts} Teile` : '';
 
   let h = '';
   const item = (ico, name, sub, qty, grams) =>
     `<div class="bom-item"><div class="bom-ico">${ico}</div><div><div class="bom-name">${name}</div><div class="bom-sub">${sub}</div></div><div class="bom-qty">${qty}<small>×</small></div></div>`;
   if (b.connectors.length) {
-    h += `<div class="bom-group"><h4><span>Verbinder · ${fmt(S.profile.height)} mm hoch</span><span>${b.connectors.reduce((s, c) => s + c.qty, 0)}</span></h4>`;
-    for (const c of b.connectors) h += item(iconSvg('conn', c.type), typeName(c.type), `${typeDesc(c.type)} · ca. ${fmt(c.g)} g`, c.qty);
+    h += `<div class="bom-group"><h4><span>${T`Verbinder · ${fmt(S.profile.height)} mm hoch`}</span><span>${b.connectors.reduce((s, c) => s + c.qty, 0)}</span></h4>`;
+    for (const c of b.connectors) h += item(iconSvg('conn', c.type), typeName(c.type), T`${typeDesc(c.type)} · ca. ${fmt(c.g)} g`, c.qty);
     h += '</div>';
   }
   if (b.walls.length) {
-    h += `<div class="bom-group"><h4><span>Wände · ${fmt(g.t)} × ${fmt(g.wallH)} mm</span><span>${b.walls.reduce((s, c) => s + c.qty, 0)}</span></h4>`;
-    for (const w of b.walls) h += item(wallBadge(w.id), `${fmt(w.len)} mm`, `Höhe ${fmt(w.h)} mm · ca. ${fmt(w.g)} g`, w.qty);
+    h += `<div class="bom-group"><h4><span>${T`Wände · ${fmt(g.t)} × ${fmt(g.wallH)} mm`}</span><span>${b.walls.reduce((s, c) => s + c.qty, 0)}</span></h4>`;
+    for (const w of b.walls) h += item(wallBadge(w.id), `${fmt(w.len)} mm`, T`Höhe ${fmt(w.h)} mm · ca. ${fmt(w.g)} g`, w.qty);
     h += '</div>';
   }
   if (b.extras.length) {
-    h += `<div class="bom-group"><h4><span>Zubehör</span><span>${b.extras.reduce((s, c) => s + c.qty, 0)}</span></h4>`;
-    for (const x of b.extras) h += item(iconSvg('clip'), 'Beschriftungsclip', `Wird oben auf eine Wand gesteckt · ca. ${fmt(x.g)} g`, x.qty);
+    h += `<div class="bom-group"><h4><span>${T('Zubehör')}</span><span>${b.extras.reduce((s, c) => s + c.qty, 0)}</span></h4>`;
+    for (const x of b.extras) h += item(iconSvg('clip'), T('Beschriftungsclip'), T`Wird oben auf eine Wand gesteckt · ca. ${fmt(x.g)} g`, x.qty);
     h += '</div>';
   }
   if (b.rails.length) {
-    h += `<div class="bom-group"><h4><span>Raster-Schienen</span><span>${b.rails.reduce((s, c) => s + c.qty, 0)}</span></h4>`;
-    for (const r of b.rails) h += item(iconSvg('rail'), `${fmt(r.len)} mm`, `Breite ${fmt(r.width)} · Versatz ${fmt(r.offset, 2)}${r.tongue ? ' · Zapfen' : ''}${r.socket ? ' · Buchse' : ''}`, r.qty);
+    h += `<div class="bom-group"><h4><span>${T('Raster-Schienen')}</span><span>${b.rails.reduce((s, c) => s + c.qty, 0)}</span></h4>`;
+    for (const r of b.rails) h += item(iconSvg('rail'), `${fmt(r.len)} mm`, T`Breite ${fmt(r.width)} · Versatz ${fmt(r.offset, 2)}` + (r.tongue ? T(' · Zapfen') : '') + (r.socket ? T(' · Buchse') : ''), r.qty);
     h += '</div>';
   }
-  $('#bom').innerHTML = h || '<div class="empty">Noch keine Teile – zeichne Wände in die Schublade.</div>';
+  $('#bom').innerHTML = h || `<div class="empty">${T('Noch keine Teile – zeichne Wände in die Schublade.')}</div>`;
 
   const icon = { err: '⛔', warn: '⚠️', info: 'ℹ️' };
   const seen = new Set();
   const msgs = A.msgs.filter(m => !seen.has(m.text) && seen.add(m.text));
   $('#msgs').innerHTML = msgs.length ? msgs.map(m => `<div class="msg ${m.lvl}"><span>${icon[m.lvl]}</span><span>${esc(m.text)}</span></div>`).join('')
-                                     : '<div class="msg info"><span>✓</span><span>Alles passt.</span></div>';
+                                     : '<div class="msg info"><span>✓</span><span>' + T('Alles passt.') + '</span></div>';
 
   const sec = $('#selSec');
   if (ui.sel !== null && S.walls[ui.sel]) {
     const w = S.walls[ui.sel];
     const parts = A.pieces.filter(pc => pc.o === w.o && near(pc.c, w.c) && pc.s < w.b && pc.e > w.a);
     sec.hidden = false;
-    $('#selInfo').innerHTML = `<dl><dt>Richtung</dt><dd>${w.o === 'h' ? 'waagerecht' : 'senkrecht'}</dd>
-      <dt>Position</dt><dd>${w.o === 'h' ? 'Y' : 'X'} = ${fmt(w.c)} mm</dd>
-      <dt>Mittellinie</dt><dd>${fmt(w.b - w.a)} mm</dd>
-      <dt>Druckteile</dt><dd>${parts.map(pc => fmt(pc.len) + ' mm').join(', ') || '–'}</dd></dl>
-      <p class="hint">Ziehen zum Verschieben · Entf zum Löschen</p>`;
+    $('#selInfo').innerHTML = `<dl><dt>${T('Richtung')}</dt><dd>${w.o === 'h' ? T('waagerecht') : T('senkrecht')}</dd>
+      <dt>${T('Position')}</dt><dd>${w.o === 'h' ? 'Y' : 'X'} = ${fmt(w.c)} mm</dd>
+      <dt>${T('Mittellinie')}</dt><dd>${fmt(w.b - w.a)} mm</dd>
+      <dt>${T('Druckteile')}</dt><dd>${parts.map(pc => fmt(pc.len) + ' mm').join(', ') || '–'}</dd></dl>
+      <p class="hint">${T('Ziehen zum Verschieben · Entf zum Löschen')}</p>`;
   } else sec.hidden = true;
 }
 
 // Printed assembly plan: parts by letter and the steps for this edge mode.
 function drawPlan() {
   const b = A.bom, st = S.settings;
-  const edge = { frame: 'Rahmen', endcap: 'Endstücke', rail: 'Raster-Schienen', none: 'direkt geklemmt' }[st.border];
+  const edge = { frame: T('Rahmen'), endcap: T('Endstücke'), rail: T('Raster-Schienen'), none: T('direkt geklemmt') }[st.border];
   const steps = [];
-  steps.push(`Alle Teile drucken (${b.parts} Teile, ca. ${fmt(b.grams, 0)} g).` + (st.labels ? ' In jedes Wandende ist sein Buchstabe und seine Länge graviert.' : ''));
-  if (st.border === 'rail') steps.push('Raster-Schienen an die Schubladenseiten kleben oder schrauben – zusammengesetzte Schienen mit Zapfen in die Buchse stecken.');
-  if (st.border === 'frame') steps.push('Mit dem Rahmen beginnen: Ecken, T-Stücke und die Außenwände zu einem Rechteck zusammenstecken.');
-  if (b.connectors.some(c => c.type === 'straight')) steps.push('Geteilte lange Wände mit den geraden Verlängerungen verbinden.');
+  steps.push(T`Alle Teile drucken (${b.parts} Teile, ca. ${fmt(b.grams, 0)} g).` + (st.labels ? T(' In jedes Wandende ist sein Buchstabe und seine Länge graviert.') : ''));
+  if (st.border === 'rail') steps.push(T('Raster-Schienen an die Schubladenseiten kleben oder schrauben – zusammengesetzte Schienen mit Zapfen in die Buchse stecken.'));
+  if (st.border === 'frame') steps.push(T('Mit dem Rahmen beginnen: Ecken, T-Stücke und die Außenwände zu einem Rechteck zusammenstecken.'));
+  if (b.connectors.some(c => c.type === 'straight')) steps.push(T('Geteilte lange Wände mit den geraden Verlängerungen verbinden.'));
   steps.push(st.slip
-    ? 'Die durchgehenden Wände aufstellen, die kurzen Wände dazwischen stellen und dann die Verbinder von oben aufstecken.'
-    : 'Innenwände nach dem Plan einsetzen – die Buchstaben im Plan zeigen, welche Wand wohin gehört. Von einer Seite zur anderen arbeiten, jeweils Wand in den Verbinder schieben.');
-  if (st.border === 'endcap') steps.push('Die Endstücke sitzen an der Schubladenwand – das Ganze am Stück in die Schublade setzen.');
-  else if (st.border !== 'rail') steps.push('Das fertige Gitter in die Schublade setzen.');
-  if (b.extras.length) steps.push('Beschriftungsclips beschriften und oben auf die Wände der Fächer stecken.');
+    ? T('Die durchgehenden Wände aufstellen, die kurzen Wände dazwischen stellen und dann die Verbinder von oben aufstecken.')
+    : T('Innenwände nach dem Plan einsetzen – die Buchstaben im Plan zeigen, welche Wand wohin gehört. Von einer Seite zur anderen arbeiten, jeweils Wand in den Verbinder schieben.'));
+  if (st.border === 'endcap') steps.push(T('Die Endstücke sitzen an der Schubladenwand – das Ganze am Stück in die Schublade setzen.'));
+  else if (st.border !== 'rail') steps.push(T('Das fertige Gitter in die Schublade setzen.'));
+  if (b.extras.length) steps.push(T('Beschriftungsclips beschriften und oben auf die Wände der Fächer stecken.'));
   $('#plan').innerHTML = `<h4>${esc(S.name)}</h4>
-    <div class="hint">Schublade ${S.drawer.w} × ${S.drawer.d} × ${S.drawer.h} mm · Rand: ${edge}${st.slip ? ' · Aufsteck-Verbinder' : ''} · Wände ${fmt(A.g.t)} × ${fmt(A.g.wallH)} mm</div>
-    <table><tr><th>Teil</th><th>Maß</th><th>Anzahl</th></tr>
-      ${b.walls.map(w => `<tr><td><b>Wand ${w.id}</b></td><td>${fmt(w.len)} mm</td><td>${w.qty}×</td></tr>`).join('')}
-      ${b.connectors.map(c => `<tr><td>${typeName(c.type)}</td><td>${fmt(S.profile.height)} mm hoch</td><td>${c.qty}×</td></tr>`).join('')}
-      ${b.rails.map(r => `<tr><td>Schiene</td><td>${fmt(r.len)} mm</td><td>${r.qty}×</td></tr>`).join('')}
-      ${b.extras.map(x => `<tr><td>Beschriftungsclip</td><td>40 mm breit</td><td>${x.qty}×</td></tr>`).join('')}
+    <div class="hint">${T`Schublade ${S.drawer.w} × ${S.drawer.d} × ${S.drawer.h} mm · Rand: ${edge}`}${st.slip ? T(' · Aufsteck-Verbinder') : ''} · ${T`Wände ${fmt(A.g.t)} × ${fmt(A.g.wallH)} mm`}</div>
+    <table><tr><th>${T('Teil')}</th><th>${T('Maß')}</th><th>${T('Anzahl')}</th></tr>
+      ${b.walls.map(w => `<tr><td><b>${T`Wand ${w.id}`}</b></td><td>${fmt(w.len)} mm</td><td>${w.qty}×</td></tr>`).join('')}
+      ${b.connectors.map(c => `<tr><td>${typeName(c.type)}</td><td>${T`${fmt(S.profile.height)} mm hoch`}</td><td>${c.qty}×</td></tr>`).join('')}
+      ${b.rails.map(r => `<tr><td>${T('Schiene')}</td><td>${fmt(r.len)} mm</td><td>${r.qty}×</td></tr>`).join('')}
+      ${b.extras.map(x => `<tr><td>${T('Beschriftungsclip')}</td><td>${T('40 mm breit')}</td><td>${x.qty}×</td></tr>`).join('')}
     </table>
     <ol>${steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>`;
 }
@@ -1405,15 +1582,15 @@ for (const el of $$('[data-k]')) {
 }
 // Profiles: everything except drawer, edge mode and walls, kept in this browser
 function loadProfiles() { try { return JSON.parse(localStorage.getItem(PROFILES_KEY)) || {}; } catch { return {}; } }
-function storeProfiles(all) { try { localStorage.setItem(PROFILES_KEY, JSON.stringify(all)); } catch { flash('Profile können in diesem Browser nicht gespeichert werden.'); } }
+function storeProfiles(all) { try { localStorage.setItem(PROFILES_KEY, JSON.stringify(all)); } catch { flash(T('Profile können in diesem Browser nicht gespeichert werden.')); } }
 function fillProfiles() {
   const all = loadProfiles(), names = Object.keys(all).sort((a, b) => a.localeCompare(b, 'de'));
-  $('#profSel').innerHTML = '<option value="">Standard</option>' + names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  $('#profSel').innerHTML = `<option value="">${T('Standard')}</option>` + names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
   $('#profSel').value = all[S.preset] ? S.preset : '';
   $('#profDel').disabled = !all[S.preset];
 }
 function applyProfile(name, src) {
-  if (!src) { flash('Profil nicht gefunden.'); fillProfiles(); return; }
+  if (!src) { flash(T('Profil nicht gefunden.')); fillProfiles(); return; }
   mutate(() => {
     const g0 = geom(S), keep = Object.fromEntries(PER_DRAWER.map(k => [k, S.settings[k]]));
     S.profile = { ...DEFAULT_PROFILE, ...src.profile };
@@ -1430,23 +1607,23 @@ $('#profSel').addEventListener('change', e => {
 });
 $('#profReset').addEventListener('click', () => applyProfile('', { profile: DEFAULT_PROFILE, settings: defaultSettings() }));
 $('#profSave').addEventListener('click', async () => {
-  const name = await ask('Profil speichern', { text: 'Name für das Profil, z.B. dein Drucker:', input: S.preset || 'Mein Drucker', ok: 'Speichern' });
+  const name = await ask(T('Profil speichern'), { text: T('Name für das Profil, z.B. dein Drucker:'), input: S.preset || T('Mein Drucker'), ok: T('Speichern') });
   if (!name) return;
   const all = loadProfiles(), settings = { ...S.settings };
   for (const k of PER_DRAWER) delete settings[k];
   all[name] = { profile: { ...S.profile }, settings };
   storeProfiles(all);
   S.preset = name; persist(); fillProfiles();
-  flash(`Profil „${name}“ gespeichert.`);
+  flash(T`Profil „${name}“ gespeichert.`);
 });
 $('#profDel').addEventListener('click', async () => {
   const all = loadProfiles();
-  if (!all[S.preset] || !await ask(`Profil „${S.preset}“ löschen?`, { ok: 'Löschen' })) return;
+  if (!all[S.preset] || !await ask(T`Profil „${S.preset}“ löschen?`, { ok: T('Löschen') })) return;
   delete all[S.preset]; storeProfiles(all);
   S.preset = ''; persist(); fillProfiles();
 });
 for (const r of $$('input[name=border]')) r.addEventListener('change', () => mutate(() => setWithRemap('settings.border', r.value)));
-$('#projName').addEventListener('change', e => mutate(() => { S.name = e.target.value.trim() || 'Schublade'; }));
+$('#projName').addEventListener('change', e => mutate(() => { S.name = e.target.value.trim() || T('Schublade'); }));
 
 // ---------------------------------------------------------------------------
 // Tools & pointer interaction
@@ -1457,10 +1634,10 @@ function setTool(t) {
   for (const b of $$('.tool[data-tool]')) b.classList.toggle('on', b.dataset.tool === t);
   svg.setAttribute('class', 't-' + t);
   $('#splitBar').classList.toggle('show', t === 'split');
-  const hints = { draw: 'Klicken & ziehen, um eine Wand zu zeichnen. Endpunkte rasten an Rand, Raster und bestehenden Wänden ein.',
-                  split: 'In ein Fach klicken, um es zu teilen. Zahl 1–6 = Anzahl Fächer, Shift = Richtung.',
-                  select: 'Wand anklicken zum Auswählen, ziehen zum Verschieben.',
-                  erase: 'Wandstück zwischen zwei Verbindern anklicken, um es zu entfernen.' };
+  const hints = { draw: T('Klicken & ziehen, um eine Wand zu zeichnen. Endpunkte rasten an Rand, Raster und bestehenden Wänden ein.'),
+                  split: T('In ein Fach klicken, um es zu teilen. Zahl 1–6 = Anzahl Fächer, Shift = Richtung.'),
+                  select: T('Wand anklicken zum Auswählen, ziehen zum Verschieben.'),
+                  erase: T('Wandstück zwischen zwei Verbindern anklicken, um es zu entfernen.') };
   $('#shint').textContent = hints[t];
   render();
 }
@@ -1558,12 +1735,12 @@ svg.addEventListener('pointerdown', e => {
   } else if (ui.tool === 'erase') {
     const iv = hitLineInterval(m);
     if (!iv) return;
-    if (iv.frame) { flash('Der Rahmen gehört zum Randmodus „Rahmen" – ändere links den Rand, um ihn zu entfernen.'); return; }
+    if (iv.frame) { flash(T('Der Rahmen gehört zum Randmodus „Rahmen" – ändere links den Rand, um ihn zu entfernen.')); return; }
     mutate(() => eraseInterval(iv));
   } else if (ui.tool === 'split') {
     computeSplit(m);
     if (ui.splitPreview && ui.splitPreview.length) {
-      if (ui.splitBad) { flash(TOO_CLOSE() + ' Weniger Fächer wählen.'); return; }
+      if (ui.splitBad) { flash(TOO_CLOSE() + T(' Weniger Fächer wählen.')); return; }
       const add = ui.splitPreview; mutate(() => S.walls.push(...add)); computeSplit(m); drawSVG();
     }
   }
@@ -1586,7 +1763,7 @@ svg.addEventListener('pointermove', e => {
   } else if (ui.tool === 'erase') ui.eraseHL = hitLineInterval(m);
   else if (ui.tool === 'split') computeSplit(m);
   const n = !d && hitNode(m);
-  showTip(e, n ? `${typeName(n.type)}${n.joint ? ' (Verlängerung)' : ''}` : null);
+  showTip(e, n ? `${typeName(n.type)}${n.joint ? T(' (Verlängerung)') : ''}` : null);
   drawSVG();
 });
 svg.addEventListener('pointerup', e => {
@@ -1598,10 +1775,10 @@ svg.addEventListener('pointerup', e => {
     const chk = w.b - w.a >= 2 ? wallGapCheck(w) : null;
     if (chk && chk.c !== null && breaksLayout(S.walls.concat({ ...w, c: chk.c }))) { flash(TOO_CLOSE()); drawSVG(); }
     else if (chk && chk.c !== null) mutate(() => S.walls.push({ ...w, c: chk.c }));
-    else { if (chk) flash(`Zu nah an der Nachbarwand oder am Rand – mindestens ${fmt(chk.minGap, 0)} mm Abstand, sonst passen die Verbinder nicht.`); drawSVG(); }
+    else { if (chk) flash(T`Zu nah an der Nachbarwand oder am Rand – mindestens ${fmt(chk.minGap, 0)} mm Abstand, sonst passen die Verbinder nicht.`); drawSVG(); }
   } else if (d.type === 'move') {
     const w = S.walls[d.idx], chk = wallGapCheck({ o: w.o, c: w.c, a: Math.min(w.a, w.b), b: Math.max(w.a, w.b) }, w.c);
-    if (chk.c === null) { w.c = d.c0; flash(`Zu nah an der Nachbarwand oder am Rand – mindestens ${fmt(chk.minGap, 0)} mm Abstand.`); render(); }
+    if (chk.c === null) { w.c = d.c0; flash(T`Zu nah an der Nachbarwand oder am Rand – mindestens ${fmt(chk.minGap, 0)} mm Abstand.`); render(); }
     else if (chk.c !== w.c) { w.c = chk.c; render(); }
     if (w.c !== d.c0 && badPieces(S) > badPieces(JSON.parse(d.before))) { w.c = d.c0; flash(TOO_CLOSE()); render(); }
     commit(d.before);
@@ -1682,7 +1859,7 @@ $('#btnUndo').addEventListener('click', undo);
 $('#btnRedo').addEventListener('click', redo);
 $('#btnFit').addEventListener('click', fit);
 $('#btnClear').addEventListener('click', async () => {
-  if (S.walls.length && await ask('Alle Wände löschen?', { text: 'Mit Strg+Z kannst du das rückgängig machen.', ok: 'Löschen' }))
+  if (S.walls.length && await ask(T('Alle Wände löschen?'), { text: T('Mit Strg+Z kannst du das rückgängig machen.'), ok: T('Löschen') }))
     mutate(() => { S.walls = []; ui.sel = null; });
 });
 const gridDlg = $('#gridDlg');
@@ -1703,12 +1880,12 @@ $('#gOk').addEventListener('click', e => {
   const c = clamp(parseInt($('#gCols').value) || 1, 1, 30), r = clamp(parseInt($('#gRows').value) || 1, 1, 30);
   gridDlg.close();
   mutate(() => { S.walls = tpl ? stripWalls(S, tpl.cols, tpl.rows) : gridWalls(S, c, r); ui.sel = null; });
-  if (A.conflicts) flash('Die Schublade ist für diese Vorlage zu klein – rot markierte Stellen anpassen.');
+  if (A.conflicts) flash(T('Die Schublade ist für diese Vorlage zu klein – rot markierte Stellen anpassen.'));
 });
 
 // header buttons
 $('#btnNew').addEventListener('click', async () => {
-  if (!await ask('Neues Projekt beginnen?', { text: 'Alle Wände werden entfernt. Schublade und Einstellungen bleiben.', ok: 'Neu beginnen' })) return;
+  if (!await ask(T('Neues Projekt beginnen?'), { text: T('Alle Wände werden entfernt. Schublade und Einstellungen bleiben.'), ok: T('Neu beginnen') })) return;
   mutate(() => { const keep = { drawer: S.drawer, profile: S.profile, preset: S.preset, settings: S.settings }; S = { ...defaultState(), ...JSON.parse(JSON.stringify(keep)) }; });
   syncInputs(); fit();
 });
@@ -1717,7 +1894,7 @@ $('#btnOpen').addEventListener('click', () => $('#fileIn').click());
 $('#fileIn').addEventListener('change', async e => {
   const f = e.target.files[0]; if (!f) return;
   try { const o = migrate(JSON.parse(await f.text())); mutate(() => { S = o; }); syncInputs(); fit(); render(); }
-  catch (err) { ask('Datei konnte nicht gelesen werden', { text: err.message }); }
+  catch (err) { ask(T('Datei konnte nicht gelesen werden'), { text: err.message }); }
   e.target.value = '';
 });
 const exportMenu = $('#exportMenu');
@@ -1743,8 +1920,8 @@ async function shareLink() {
   const data = await pipe(new TextEncoder().encode(JSON.stringify({ name, drawer, profile, settings, walls })), new CompressionStream('deflate-raw'));
   const base = location.protocol.startsWith('http') ? location.origin + location.pathname : PAGES_URL;
   const url = base + '#p=' + b64url(data);
-  try { await navigator.clipboard.writeText(url); flash('Link kopiert – er enthält das ganze Layout.'); }
-  catch { await ask('Link zum Teilen', { text: 'Kopiere diesen Link:', input: url }); }
+  try { await navigator.clipboard.writeText(url); flash(T('Link kopiert – er enthält das ganze Layout.')); }
+  catch { await ask(T('Link zum Teilen'), { text: T('Kopiere diesen Link:'), input: url }); }
 }
 async function loadFromHash() {
   const m = location.hash.match(/^#p=([\w-]+)$/);
@@ -1753,8 +1930,8 @@ async function loadFromHash() {
   try {
     const o = migrate(JSON.parse(new TextDecoder().decode(await pipe(unb64url(m[1]), new DecompressionStream('deflate-raw')))));
     mutate(() => { S = o; }); syncInputs(); fit(); render();
-    flash('Geteiltes Layout geladen – Rückgängig holt dein vorheriges zurück.');
-  } catch { ask('Link konnte nicht gelesen werden', { text: 'Der Link ist unvollständig oder beschädigt.' }); }
+    flash(T('Geteiltes Layout geladen – Rückgängig holt dein vorheriges zurück.'));
+  } catch { ask(T('Link konnte nicht gelesen werden'), { text: T('Der Link ist unvollständig oder beschädigt.') }); }
 }
 
 // The published page is the self-contained build; offer it as a file to keep.
@@ -1764,13 +1941,13 @@ async function saveOffline() {
   try {
     const html = await fetch(location.href, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(r.status); return r.text(); });
     download('Drawer-Divider-Designer.html', html, 'text/html');
-  } catch (err) { ask('Download nicht möglich', { text: 'Speichere die Seite stattdessen mit Strg+S.' }); }
+  } catch (err) { ask(T('Download nicht möglich'), { text: T('Speichere die Seite stattdessen mit Strg+S.') }); }
 }
 
 // ---------------------------------------------------------------------------
 // Export
 // ---------------------------------------------------------------------------
-const fileBase = () => (S.name || 'schublade').replace(/[^\w\-äöüÄÖÜß ]+/g, '').trim().replace(/\s+/g, '_') || 'schublade';
+const fileBase = () => (S.name || T('schublade')).replace(/[^\w\-äöüÄÖÜß ]+/g, '').trim().replace(/\s+/g, '_') || T('schublade');
 function download(name, text, type) {
   const blob = new Blob([text], { type: type + ';charset=utf-8' });
   const a = document.createElement('a');
@@ -1780,12 +1957,12 @@ function download(name, text, type) {
 }
 
 function bomCsv() {
-  const b = A.bom, rows = [['Kategorie', 'Teil', 'Länge (mm)', 'Höhe/Breite (mm)', 'Anzahl', 'ca. Gramm je Stück', 'Hinweis']];
-  for (const c of b.connectors) rows.push(['Verbinder', typeName(c.type), '', fmt(S.profile.height), c.qty, fmt(c.g), c.type]);
-  for (const w of b.walls) rows.push(['Wand', `Wand ${w.id} ${fmt(w.len)}`, fmt(w.len), fmt(w.h), w.qty, fmt(w.g), `Dicke ${fmt(A.g.t)}`]);
-  for (const r of b.rails) rows.push(['Schiene', `Schiene ${fmt(r.len)}`, fmt(r.len), fmt(r.width), r.qty, fmt(r.g), `Zahnversatz ${fmt(r.offset, 2)}${r.tongue ? ', Zapfen' : ''}${r.socket ? ', Buchse' : ''}`]);
-  for (const x of b.extras) rows.push(['Zubehör', 'Beschriftungsclip', '40', '', x.qty, fmt(x.g), 'oben auf eine Wand stecken']);
-  rows.push([], ['Summe', '', '', '', b.parts, fmt(b.grams, 0), `Schublade ${S.drawer.w}×${S.drawer.d}×${S.drawer.h} mm`]);
+  const b = A.bom, rows = [['Kategorie', 'Teil', 'Länge (mm)', 'Höhe/Breite (mm)', 'Anzahl', 'ca. Gramm je Stück', 'Hinweis'].map(T)];
+  for (const c of b.connectors) rows.push([T('Verbinder'), typeName(c.type), '', fmt(S.profile.height), c.qty, fmt(c.g), c.type]);
+  for (const w of b.walls) rows.push([T('Wand'), T`Wand ${w.id}` + ' ' + fmt(w.len), fmt(w.len), fmt(w.h), w.qty, fmt(w.g), T`Dicke ${fmt(A.g.t)}`]);
+  for (const r of b.rails) rows.push([T('Schiene'), T('Schiene') + ' ' + fmt(r.len), fmt(r.len), fmt(r.width), r.qty, fmt(r.g), T`Zahnversatz ${fmt(r.offset, 2)}` + (r.tongue ? ', ' + T('Zapfen') : '') + (r.socket ? ', ' + T('Buchse') : '')]);
+  for (const x of b.extras) rows.push([T('Zubehör'), T('Beschriftungsclip'), '40', '', x.qty, fmt(x.g), T('oben auf eine Wand stecken')]);
+  rows.push([], [T('Summe'), '', '', '', b.parts, fmt(b.grams, 0), T`Schublade ${S.drawer.w}×${S.drawer.d}×${S.drawer.h} mm`]);
   return '﻿' + rows.map(r => r.map(v => /[;"\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(';')).join('\r\n');
 }
 
@@ -1804,18 +1981,18 @@ function buildJob() {
   for (const w of b.walls) {
     const lab = st.labels ? `, label = "${w.id}", label2 = "${num(w.len)}"` : '';
     const call = `dd_wall(${num(w.len)}, P, height = ${num(w.h)}, pattern = "${st.pattern}", grip = ${num(st.grip)}${lab})`;
-    parts.push({ label: `Wand ${w.id} ${num(w.len)} mm`, body: flat ? `translate([0, ${num(w.h / 2)}, 0]) dd_lay_flat(${num(g.t)}) ${call};` : call + ';',
+    parts.push({ label: T`Wand ${w.id}` + ` ${num(w.len)} mm`, body: flat ? `translate([0, ${num(w.h / 2)}, 0]) dd_lay_flat(${num(g.t)}) ${call};` : call + ';',
                  px: w.len + gap, py: (flat ? w.h : g.t) + gap, qty: w.qty, w: w.len });
   }
   for (const r of b.rails) {
     const call = `dd_rail(${num(r.len)}, ${num(r.width)}, P, plate = ${num(st.railPlate)}, tooth_t = ${num(st.toothT)}, tooth_h = ${num(st.toothH)}, teeth_offset = ${num(r.offset)}, tongue = ${r.tongue}, socket = ${r.socket}, screws = ${r.screws})`;
-    parts.push({ label: `Schiene ${num(r.len)} mm${r.tongue || r.socket ? ' (' + [r.socket && 'Buchse', r.tongue && 'Zapfen'].filter(Boolean).join('+') + ')' : ''}`,
+    parts.push({ label: T('Schiene') + ` ${num(r.len)} mm` + (r.tongue || r.socket ? ' (' + [r.socket && T('Buchse'), r.tongue && T('Zapfen')].filter(Boolean).join('+') + ')' : ''),
                  body: `translate([${num(-r.len / 2)}, ${num(g.railT / 2)}, 0]) rotate([90, 0, 0]) ${call};`, px: r.len + gap, py: g.railT + gap, qty: r.qty, w: r.len });
   }
 
   for (const x of b.extras) {
     const sx = g.t + 0.15 + 2.4 + 12 * Math.cos(Math.PI / 4) + 1.2, sy = 8 + 2.4 + 12 * Math.sin(Math.PI / 4);
-    parts.push({ label: 'Beschriftungsclip', body: `translate([0, ${num(8 - sy / 2)}, 0]) dd_label_clip(40, P);`, px: sx + 4, py: sy + 4, qty: x.qty, w: sx });
+    parts.push({ label: T('Beschriftungsclip'), body: `translate([0, ${num(8 - sy / 2)}, 0]) dd_label_clip(40, P);`, px: sx + 4, py: sy + 4, qty: x.qty, w: sx });
   }
   // split big quantities into several bed-sized plates
   const plates = [];
@@ -1824,7 +2001,7 @@ function buildJob() {
     const n = Math.ceil(pt.qty / per);
     for (let k = 0; k < n; k++) {
       const q = Math.min(per, pt.qty - k * per);
-      plates.push({ part: i, qty: q, label: `${q}x ${pt.label}${n > 1 ? ` (Platte ${k + 1} von ${n})` : ''}` });
+      plates.push({ part: i, qty: q, label: `${q}x ${pt.label}${n > 1 ? T` (Platte ${k + 1} von ${n})` : ''}` });
     }
   });
   const tolIdx = plates.length + 1;
@@ -1840,17 +2017,17 @@ function buildJob() {
 
   const lib = (window.DD_SCAD_LIB || '').trim();
   const L = [];
-  L.push(`// The Drawer Dividers – Druckjob "${S.name}"`);
-  L.push(`// Erstellt mit dem Drawer Divider Designer am ${new Date().toLocaleString('de-DE')}`);
-  L.push(`// Schublade ${S.drawer.w} × ${S.drawer.d} × ${S.drawer.h} mm · ${b.parts} Teile · ca. ${fmt(b.grams, 0)} g`);
+  L.push(T`// The Drawer Dividers – Druckjob "${S.name}"`);
+  L.push(T`// Erstellt mit dem Drawer Divider Designer am ${new Date().toLocaleString(LANG === 'en' ? 'en-US' : 'de-DE')}`);
+  L.push(T`// Schublade ${S.drawer.w} × ${S.drawer.d} × ${S.drawer.h} mm · ${b.parts} Teile · ca. ${fmt(b.grams, 0)} g`);
   L.push('//');
-  L.push('// So exportierst du die STLs:');
-  L.push('//   In OpenSCAD: rechts im Customizer "Teil" wählen, F6 (Rendern), F7 (STL exportieren).');
-  L.push('//   Oder direkt im Designer: "STLs erzeugen" rechnet alle Platten im Browser.');
+  L.push(T('// So exportierst du die STLs:'));
+  L.push(T('//   In OpenSCAD: rechts im Customizer "Teil" wählen, F6 (Rendern), F7 (STL exportieren).'));
+  L.push(T('//   Oder direkt im Designer: "STLs erzeugen" rechnet alle Platten im Browser.'));
   L.push('');
   L.push('/* [Export] */');
-  L.push('// Welche Druckplatte? (0 = Übersicht aller Teile)');
-  L.push(`PART = 0; // [0:Übersicht, ${plates.map((pl, i) => `${i + 1}:${pl.label.replace(/[,\]]/g, ' ')}`).join(', ')}, ${tolIdx}:Toleranztest]`);
+  L.push(T('// Welche Druckplatte? (0 = Übersicht aller Teile)'));
+  L.push(`PART = 0; // [0:${T('Übersicht')}, ${plates.map((pl, i) => `${i + 1}:${pl.label.replace(/[,\]]/g, ' ')}`).join(', ')}, ${tolIdx}:${T('Toleranztest')}]`);
   L.push('');
   L.push('/* [Hidden] */');
   L.push('$fn = 48;');
@@ -1870,11 +2047,11 @@ function buildJob() {
   L.push('');
   if (lib) {
     L.push('// ============================================================================');
-    L.push('//  Bibliothek (scad/lib/drawer_divider.scad, eingebettet)');
+    L.push(T('//  Bibliothek (scad/lib/drawer_divider.scad, eingebettet)'));
     L.push('// ============================================================================');
     L.push(lib);
   } else {
-    L.push('// Bibliothek nicht eingebettet – lege diese Datei neben drawer_divider.scad:');
+    L.push(T('// Bibliothek nicht eingebettet – lege diese Datei neben drawer_divider.scad:'));
     L.push('use <drawer_divider.scad>');
   }
   return { scad: L.join('\n') + '\n', plates: plates.map((pl, i) => ({ num: i + 1, label: pl.label })) };
@@ -1979,13 +2156,20 @@ $('#btn3d').addEventListener('click', async () => {
   $('#three').classList.toggle('show', ui.is3d);
   if (ui.is3d) {
     try { await init3D(); build3D(true); }
-    catch (err) { ui.is3d = false; $('#three').classList.remove('show'); $('#btn3d').classList.remove('on'); flash('3D-Vorschau braucht eine Internetverbindung (three.js).'); }
+    catch (err) { ui.is3d = false; $('#three').classList.remove('show'); $('#btn3d').classList.remove('on'); flash(T('3D-Vorschau braucht eine Internetverbindung (three.js).')); }
   }
 });
 
 // ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
+translateDom();
+$('#btnLang').textContent = LANG === 'en' ? 'DE' : 'EN';
+$('#btnLang').addEventListener('click', () => {
+  try { localStorage.setItem('dd-lang', LANG === 'en' ? 'de' : 'en'); } catch { /* no storage: stays as it is */ }
+  location.reload();
+});
+if (S.name === 'Meine Schublade' || S.name === 'My drawer') S.name = T('Meine Schublade');
 syncInputs(); syncSplitBar();
 A = analyze(S);
 fit();
@@ -2027,13 +2211,13 @@ async function render(num) {
       if (rc === 0 && data && data.length > 84) { flags = f; return new Uint8Array(data); }
     }
   }
-  throw new Error(errs.filter(l => /error|warning/i.test(l)).slice(-2).join(' ') || 'OpenSCAD hat keine STL erzeugt');
+  throw new Error(errs.filter(l => /error|warning/i.test(l)).slice(-2).join(' ') || ${JSON.stringify(T('OpenSCAD hat keine STL erzeugt'))});
 }
 self.onmessage = async (e) => {
   if (e.data.type !== 'run') return;
   job = e.data.scad; mod = null;
-  try { self.postMessage({ type: 'status', text: 'OpenSCAD wird geladen …' }); await fresh(); }
-  catch (err) { self.postMessage({ type: 'fatal', text: 'OpenSCAD konnte nicht geladen werden: ' + (err && err.message || err) }); return; }
+  try { self.postMessage({ type: 'status', text: ${JSON.stringify(T('OpenSCAD wird geladen …'))} }); await fresh(); }
+  catch (err) { self.postMessage({ type: 'fatal', text: ${JSON.stringify(T('OpenSCAD konnte nicht geladen werden: '))} + (err && err.message || err) }); return; }
   for (const pl of e.data.plates) {
     self.postMessage({ type: 'start', num: pl.num });
     const t0 = Date.now();
@@ -2072,7 +2256,7 @@ function startEngine(onMessage) {
       if (e.data.type === 'start') started = true;
       if (e.data.type === 'fatal' && !started) fallback(); else onMessage(e.data);
     };
-    w.onerror = e => { e.preventDefault(); if (!started) fallback(); else onMessage({ type: 'fatal', text: 'Worker-Fehler: ' + (e.message || 'unbekannt') }); };
+    w.onerror = e => { e.preventDefault(); if (!started) fallback(); else onMessage({ type: 'fatal', text: T('Worker-Fehler: ') + (e.message || '?') }); };
   } catch (err) {
     active = { inline: true, ...startInline(onMessage) };
   }
@@ -2181,20 +2365,20 @@ function saveBlob(name, blob) {
 }
 
 function openStlDialog() {
-  if (!A.bom.parts) { flash('Noch keine Teile – zeichne zuerst Fächer in die Schublade.'); return; }
+  if (!A.bom.parts) { flash(T('Noch keine Teile – zeichne zuerst Fächer in die Schublade.')); return; }
   stl.job = buildJob();
   stl.plates = stl.job.plates;
   stl.results = new Map();
   const list = $('#stlList');
   list.innerHTML = stl.plates.map(pl => `<div class="stl-row" data-num="${pl.num}">
       <span class="stl-state">○</span><span class="stl-name">${esc(pl.label)}</span>
-      <span class="stl-info">wartet</span><button class="btn stl-dl" disabled>STL</button></div>`).join('');
+      <span class="stl-info">${T('wartet')}</span><button class="btn stl-dl" disabled>STL</button></div>`).join('');
   for (const b of list.querySelectorAll('.stl-dl')) b.addEventListener('click', () => {
     const num = +b.closest('.stl-row').dataset.num, pl = stl.plates.find(p => p.num === num);
     saveBlob(plateFile(pl), new Blob([stl.results.get(num)], { type: 'model/stl' }));
   });
   $('#stlZip').disabled = true; $('#stl3mf').disabled = true;
-  $('#stlStatus').textContent = 'Startet …';
+  $('#stlStatus').textContent = T('Startet …');
   $('#stlBar').style.width = '0%';
   $('#stlDlg').showModal();
   runStl();
@@ -2218,15 +2402,15 @@ function runStl() {
   stl.engine = startEngine(m => {
     if (m.type === 'status') $('#stlStatus').textContent = m.text;
     else if (m.type === 'fatal') { $('#stlStatus').textContent = m.text; }
-    else if (m.type === 'start') { setRow(m.num, 'run', 'wird gerechnet …'); $('#stlStatus').textContent = `Platte ${m.num} von ${total} …`; }
+    else if (m.type === 'start') { setRow(m.num, 'run', T('wird gerechnet …')); $('#stlStatus').textContent = T`Platte ${m.num} von ${total} …`; }
     else if (m.type === 'done') {
       stl.results.set(m.num, m.data); doneCount++; progress();
-      setRow(m.num, 'ok', `${(m.data.length / 1048576).toFixed(1).replace('.', ',')} MB · ${(m.ms / 1000).toFixed(0)} s`);
+      setRow(m.num, 'ok', `${fmt(m.data.length / 1048576)} MB · ${(m.ms / 1000).toFixed(0)} s`);
       $('#stlZip').disabled = false; $('#stl3mf').disabled = false;
     } else if (m.type === 'fail') { doneCount++; progress(); setRow(m.num, 'err', m.text.slice(0, 120)); }
     else if (m.type === 'finished') {
       const ok = stl.results.size;
-      $('#stlStatus').textContent = ok === total ? `Fertig – ${ok} STL-Dateien bereit.` : `Fertig – ${ok} von ${total} Platten erzeugt.`;
+      $('#stlStatus').textContent = ok === total ? T`Fertig – ${ok} STL-Dateien bereit.` : T`Fertig – ${ok} von ${total} Platten erzeugt.`;
       stl.engine = null;
     }
   });
@@ -2240,19 +2424,19 @@ $('#stlDlg').addEventListener('close', () => { if (stl.engine) { stl.engine.stop
 $('#stlZip').addEventListener('click', async () => {
   const base = fileBase();
   const files = stl.plates.filter(pl => stl.results.has(pl.num)).map(pl => ({ name: `${base}/${plateFile(pl)}`, data: stl.results.get(pl.num) }));
-  files.push({ name: `${base}/${base}_stueckliste.csv`, data: bomCsv() },
-             { name: `${base}/${base}_druckjob.scad`, data: stl.job.scad },
-             { name: `${base}/${base}_projekt.json`, data: JSON.stringify(S, null, 2) });
-  saveBlob(base + '_teile.zip', await makeZip(files));
+  files.push({ name: `${base}/${base}${T('_stueckliste')}.csv`, data: bomCsv() },
+             { name: `${base}/${base}${T('_druckjob')}.scad`, data: stl.job.scad },
+             { name: `${base}/${base}${T('_projekt')}.json`, data: JSON.stringify(S, null, 2) });
+  saveBlob(base + T('_teile') + '.zip', await makeZip(files));
 });
 $('#stl3mf').addEventListener('click', async () => {
-  const btn = $('#stl3mf'); btn.disabled = true; $('#stlStatus').textContent = '3MF wird gebaut …';
+  const btn = $('#stl3mf'); btn.disabled = true; $('#stlStatus').textContent = T('3MF wird gebaut …');
   try {
     const plates = stl.plates.filter(pl => stl.results.has(pl.num)).map(pl => ({ name: plateFile(pl).replace(/\.stl$/, ''), data: stl.results.get(pl.num) }));
     const blob = await make3mf(plates, S.settings.bed);
     saveBlob(fileBase() + '.3mf', new Blob([blob], { type: 'model/3mf' }));
-    $('#stlStatus').textContent = `3MF mit ${plates.length} Platten gespeichert.`;
-  } catch (err) { $('#stlStatus').textContent = '3MF fehlgeschlagen: ' + (err && err.message || err); }
+    $('#stlStatus').textContent = T`3MF mit ${plates.length} Platten gespeichert.`;
+  } catch (err) { $('#stlStatus').textContent = T('3MF fehlgeschlagen: ') + (err && err.message || err); }
   btn.disabled = false;
 });
 
@@ -2260,8 +2444,12 @@ $('#stl3mf').addEventListener('click', async () => {
 <script>
   // opened on its own without the .js files next to it: say which file to use instead
   if (typeof analyze !== 'function') document.body.innerHTML = '<div style="max-width:560px;margin:15vh auto;padding:24px;font:15px system-ui;line-height:1.5">'
-    + '<h2>Das ist nur die Quelldatei</h2><p>Sie funktioniert nur zusammen mit den .js-Dateien im Ordner <code>designer/</code>.</p>'
-    + '<p>Zum Benutzen: <a href="https://barry2040.github.io/the-drawer-dividers/">Designer online öffnen</a> – dort unter <b>Export → Offline-Version herunterladen</b> bekommst du die komplette Datei <code>Drawer-Divider-Designer.html</code>.</p></div>';
+    + (/^de/.test(navigator.language)
+      ? '<h2>Das ist nur die Quelldatei</h2><p>Sie funktioniert nur zusammen mit den .js-Dateien im Ordner <code>designer/</code>.</p>'
+        + '<p>Zum Benutzen: <a href="https://barry2040.github.io/the-drawer-dividers/">Designer online öffnen</a> – dort unter <b>Export → Offline-Version herunterladen</b> bekommst du die komplette Datei <code>Drawer-Divider-Designer.html</code>.</p>'
+      : '<h2>This is only the source file</h2><p>It only works together with the .js files in the <code>designer/</code> folder.</p>'
+        + '<p>To use it: <a href="https://barry2040.github.io/the-drawer-dividers/">open the designer online</a> – there, <b>Export → Download offline version</b> gives you the complete file <code>Drawer-Divider-Designer.html</code>.</p>')
+    + '</div>';
 </script>
 </body>
 </html>
