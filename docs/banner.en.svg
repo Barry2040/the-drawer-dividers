@@ -40,6 +40,5 @@
     <rect x="638" y="214" width="112" height="34" rx="17" fill="#7c2d12"/><text x="694" y="237" fill="#fed7aa">OpenSCAD</text>
     <rect x="760" y="214" width="108" height="34" rx="17" fill="#7c2d12"/><text x="814" y="237" fill="#fed7aa">STL · 3MF</text>
     <rect x="878" y="214" width="94" height="34" rx="17" fill="#7c2d12"/><text x="925" y="237" fill="#fed7aa">Docker</text>
-    <rect x="982" y="214" width="122" height="34" rx="17" fill="#7c2d12"/><text x="1043" y="237" fill="#fed7aa">MakerWorld</text>
   </g>
 </svg>
