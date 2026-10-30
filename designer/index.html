@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drawer Divider Designer</title>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<style>
+:root {
+  --bg: #f4f2ee; --panel: #ffffff; --panel-2: #f8f7f4; --line: #e3dfd8; --line-2: #d2ccc2;
+  --text: #22201c; --muted: #77716a; --accent: #e8590c; --accent-2: #fff1e8; --accent-ink: #b03f04;
+  --wall: #3d4a5c; --conn: #e8590c; --conn-slip: #c2410c; --joint: #9a6c3c; --rail: #6b7f99;
+  --drawer: #fbfaf7; --grid: #ece8e1; --grid-major: #ddd7cd; --warn: #b45309; --warn-bg: #fff7e6;
+  --err: #b91c1c; --err-bg: #fdecec; --ok: #15803d; --sel: #2563eb;
+  --c1: #fde7d6; --c2: #e0ecf8; --c3: #e3f1e4; --c4: #f3e6f5; --c5: #fbf3d1; --c6: #e6e9ee;
+  --shadow: 0 1px 2px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17181a; --panel: #1f2023; --panel-2: #26282b; --line: #313338; --line-2: #3d4046;
+    --text: #ecebe8; --muted: #9a978f; --accent: #ff7a33; --accent-2: #3a2416; --accent-ink: #ffb088;
+    --wall: #c9d3e0; --conn: #ff7a33; --conn-slip: #ff9a5c; --joint: #d9a066; --rail: #8aa0bd;
+    --drawer: #1c1d20; --grid: #26282c; --grid-major: #31343a; --warn: #f0b04a; --warn-bg: #33270f;
+    --err: #ff6b6b; --err-bg: #3a1616; --sel: #6aa1ff;
+    --c1: #3a2a1f; --c2: #1f2c3a; --c3: #1f3323; --c4: #33233a; --c5: #36301a; --c6: #2a2d33;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.3);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--text); font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; overflow: hidden; }
+button, input, select { font: inherit; color: inherit; }
+header { display: flex; align-items: center; gap: 12px; padding: 8px 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.logo { display: flex; align-items: center; gap: 8px; font-weight: 650; letter-spacing: .1px; white-space: nowrap; }
+.logo svg { width: 22px; height: 22px; }
+.logo small { font-weight: 500; color: var(--muted); }
+#projName { border: 1px solid transparent; background: transparent; padding: 4px 8px; border-radius: 6px; min-width: 120px; width: 220px; font-weight: 500; }
+#projName:hover, #projName:focus { border-color: var(--line-2); background: var(--panel-2); outline: none; }
+.spacer { flex: 1; }
+.btn { border: 1px solid var(--line-2); background: var(--panel); padding: 5px 11px; border-radius: 7px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.btn:hover { background: var(--panel-2); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn svg { width: 15px; height: 15px; }
+.menu { position: relative; }
+.menu-pop { position: absolute; right: 0; top: calc(100% + 6px); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); padding: 6px; min-width: 260px; display: none; z-index: 30; }
+.menu.open .menu-pop { display: block; }
+.menu-pop button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 8px 10px; border-radius: 7px; cursor: pointer; }
+.menu-pop button:hover { background: var(--panel-2); }
+.menu-pop button small { display: block; color: var(--muted); }
+
+main { flex: 1; display: grid; grid-template-columns: 290px 1fr 340px; min-height: 0; }
+aside { background: var(--panel); overflow-y: auto; }
+aside.left { border-right: 1px solid var(--line); }
+aside.right { border-left: 1px solid var(--line); }
+.sec { padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.sec h3 { margin: 0 0 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .7px; color: var(--muted); font-weight: 650; display: flex; align-items: center; gap: 8px; }
+.sec h3 .count { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--text); }
+.row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.field { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
+.field > span { font-size: 11.5px; color: var(--muted); }
+.field input[type=number], .field select { width: 100%; padding: 5px 7px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--panel-2); }
+.field input:focus, .field select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.unit { position: relative; }
+.unit input { padding-right: 30px !important; }
+.unit::after { content: attr(data-u); position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 11px; pointer-events: none; }
+details { margin-top: 4px; }
+details summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 4px 0; user-select: none; }
+details[open] summary { margin-bottom: 8px; }
+.seg { display: grid; gap: 6px; }
+.opt { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line-2); border-radius: 8px; padding: 8px 10px; cursor: pointer; background: var(--panel); }
+.opt:hover { background: var(--panel-2); }
+.opt input { margin-top: 2px; accent-color: var(--accent); }
+.opt b { font-weight: 600; display: block; }
+.opt small { color: var(--muted); }
+.opt:has(input:checked) { border-color: var(--accent); background: var(--accent-2); }
+.check { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0; cursor: pointer; }
+.check input { accent-color: var(--accent); margin-top: 2px; }
+.check small { display: block; color: var(--muted); }
+.hint { font-size: 11.5px; color: var(--muted); margin: 4px 0 0; }
+
+.stage { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.toolbar { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 4px; box-shadow: var(--shadow); z-index: 5; }
+.tool { border: 0; background: none; padding: 6px 10px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 6px; color: var(--text); }
+.tool:hover { background: var(--panel-2); }
+.tool.on { background: var(--accent); color: #fff; }
+.tool svg { width: 16px; height: 16px; }
+.tool kbd { font: 10px ui-monospace, monospace; opacity: .6; }
+.tsep { width: 1px; background: var(--line); margin: 4px 2px; }
+.subbar { position: absolute; top: 60px; left: 50%; transform: translateX(-50%); display: none; gap: 6px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 4px 8px; box-shadow: var(--shadow); z-index: 5; font-size: 12px; }
+.subbar.show { display: flex; }
+.chip { border: 1px solid var(--line-2); background: var(--panel); border-radius: 999px; padding: 2px 10px; cursor: pointer; }
+.chip.on { background: var(--accent-2); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+#canvasWrap { flex: 1; position: relative; overflow: hidden; }
+#svg { width: 100%; height: 100%; display: block; touch-action: none; }
+#svg.t-draw, #svg.t-split { cursor: crosshair; }
+#svg.t-erase { cursor: not-allowed; }
+#svg.panning { cursor: grabbing; }
+#three { position: absolute; inset: 0; display: none; }
+#three.show { display: block; }
+.statusbar { display: flex; gap: 16px; padding: 6px 14px; border-top: 1px solid var(--line); background: var(--panel); color: var(--muted); font-size: 12px; }
+.statusbar b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+#tip { position: fixed; pointer-events: none; background: var(--text); color: var(--panel); padding: 4px 8px; border-radius: 6px; font-size: 12px; display: none; z-index: 50; white-space: nowrap; }
+
+/* svg */
+.drawer-wall { fill: var(--line-2); }
+.drawer-in { fill: var(--drawer); }
+.g-minor { stroke: var(--grid); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.g-major { stroke: var(--grid-major); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.inset { fill: none; stroke: var(--line-2); stroke-dasharray: 4 4; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.comp { stroke: none; }
+.comp-label { font-weight: 600; fill: var(--text); opacity: .75; text-anchor: middle; dominant-baseline: middle; pointer-events: none; font-variant-numeric: tabular-nums; }
+.wall { fill: var(--wall); }
+.wall.bad { fill: var(--err); }
+.wall.hl { fill: var(--sel); }
+.wall.erase { fill: var(--err); opacity: .8; }
+.conn { fill: var(--conn); stroke: rgba(0,0,0,.25); stroke-width: .6; vector-effect: non-scaling-stroke; }
+.conn.slip { fill: var(--conn-slip); }
+.conn.joint { fill: var(--joint); }
+.slot { fill: rgba(0,0,0,.45); }
+.rail { fill: var(--rail); }
+.tooth { fill: var(--rail); opacity: .55; }
+.dim { font-size: 11px; fill: var(--muted); text-anchor: middle; dominant-baseline: middle; pointer-events: none; font-variant-numeric: tabular-nums; paint-order: stroke; stroke: var(--drawer); stroke-width: 3px; }
+.preview { stroke: var(--sel); stroke-width: 3; stroke-linecap: round; vector-effect: non-scaling-stroke; opacity: .8; }
+.preview-split { stroke: var(--accent); stroke-width: 2.5; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; }
+.cursor-dot { fill: var(--sel); }
+.edge-label { font-size: 11px; fill: var(--muted); text-anchor: middle; letter-spacing: 1px; text-transform: uppercase; }
+.region-hl { fill: var(--accent); opacity: .08; }
+
+/* bom */
+.bom-group { margin-bottom: 14px; }
+.bom-group h4 { margin: 0 0 6px; font-size: 12px; font-weight: 600; display: flex; justify-content: space-between; color: var(--muted); }
+.bom-item { display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); margin-bottom: 5px; background: var(--panel); }
+.bom-item:hover { border-color: var(--line-2); background: var(--panel-2); }
+.bom-ico { width: 34px; height: 34px; display: grid; place-items: center; background: var(--panel-2); border-radius: 6px; }
+.bom-ico svg { width: 28px; height: 28px; }
+.bom-name { font-weight: 550; }
+.bom-sub { color: var(--muted); font-size: 11.5px; }
+.bom-qty { font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
+.bom-qty small { font-weight: 500; font-size: 11px; color: var(--muted); }
+.totals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stat { background: var(--panel-2); border-radius: 8px; padding: 8px 10px; }
+.stat b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+.stat span { color: var(--muted); font-size: 11px; }
+.msg { padding: 7px 10px; border-radius: 8px; margin-bottom: 6px; font-size: 12px; display: flex; gap: 8px; }
+.msg.warn { background: var(--warn-bg); color: var(--warn); }
+.msg.err { background: var(--err-bg); color: var(--err); }
+.msg.info { background: var(--panel-2); color: var(--muted); }
+.empty { color: var(--muted); font-size: 12px; padding: 6px 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11.5px; color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.sel-info { font-size: 12.5px; }
+.sel-info dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 0; }
+.sel-info dt { color: var(--muted); }
+.sel-info dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--text); padding: 18px 20px; box-shadow: var(--shadow); width: 340px; }
+dialog::backdrop { background: rgba(0,0,0,.3); }
+dialog h3 { margin: 0 0 12px; font-size: 15px; }
+dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+
+@media (max-width: 1400px) { .tool span, .tool kbd { display: none; } }
+@media (max-width: 1100px) {
+  main { grid-template-columns: 260px 1fr 280px; }
+  .sec { padding: 12px; }
+  .unit input { padding-right: 24px !important; }
+  .unit::after { right: 5px; }
+}
+@media (max-width: 820px) {
+  body { overflow: auto; }
+  main { grid-template-columns: 1fr; grid-template-rows: auto 70vh auto; }
+  aside.left, aside.right { border: 0; border-bottom: 1px solid var(--line); }
+  .tool span { display: none; }
+  header { flex-wrap: wrap; }
+}
+
+@media print {
+  header, aside.left, .toolbar, .subbar, .statusbar, #selSec, #three { display: none !important; }
+  body { overflow: visible; background: #fff; }
+  main { display: block; }
+  .stage { height: 60vh; page-break-after: always; }
+  aside.right { border: 0; overflow: visible; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="4" width="19" height="16" rx="2"/><path d="M9 4v16M9 12h12.5M15.5 12v8"/></svg>
+    Drawer Divider <small>Designer</small>
+  </div>
+  <input id="projName" value="Meine Schublade" title="Projektname">
+  <div class="spacer"></div>
+  <button class="btn" id="btnNew" title="Neues Projekt">Neu</button>
+  <button class="btn" id="btnOpen" title="Projekt öffnen (.json)">Öffnen</button>
+  <button class="btn" id="btnSave" title="Projekt speichern (.json)">Speichern</button>
+  <div class="menu" id="exportMenu">
+    <button class="btn primary" id="btnExport">Export
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+    <div class="menu-pop">
+      <button data-export="scad"><b>OpenSCAD-Druckjob</b><small>Alle Teile in einer .scad – Teil wählen, STL exportieren</small></button>
+      <button data-export="csv"><b>Stückliste (CSV)</b><small>Für Excel / Tabellen</small></button>
+      <button data-export="print"><b>Drucken / PDF</b><small>Plan und Stückliste</small></button>
+    </div>
+  </div>
+  <input type="file" id="fileIn" accept=".json,application/json" hidden>
+</header>
+
+<main>
+  <aside class="left">
+    <div class="sec">
+      <h3>Schublade (Innenmaß)</h3>
+      <div class="row">
+        <label class="field"><span>Breite</span><div class="unit" data-u="mm"><input type="number" data-k="drawer.w" min="50" max="2000" step="1"></div></label>
+        <label class="field"><span>Tiefe</span><div class="unit" data-u="mm"><input type="number" data-k="drawer.d" min="50" max="2000" step="1"></div></label>
+        <label class="field"><span>Höhe</span><div class="unit" data-u="mm"><input type="number" data-k="drawer.h" min="10" max="500" step="1"></div></label>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h3>System</h3>
+      <label class="field"><span>Profil</span>
+        <select id="presetSel">
+          <option value="v2">V2 – 2 mm Wände, offen</option>
+          <option value="v1">V1 Classic – 4,9 mm Wände, mit Deckel</option>
+          <option value="custom">Eigene Werte</option>
+        </select>
+      </label>
+      <div class="row">
+        <label class="field"><span>Wanddicke</span><div class="unit" data-u="mm"><input type="number" data-k="profile.wall_t" step="0.1" min="0.8"></div></label>
+        <label class="field"><span>Toleranz</span><div class="unit" data-u="mm"><input type="number" data-k="profile.tol" step="0.05" min="0"></div></label>
+        <label class="field"><span>Höhe</span><div class="unit" data-u="mm"><input type="number" data-k="profile.height" step="1" min="10"></div></label>
+      </div>
+      <details>
+        <summary>Verbinder-Details</summary>
+        <div class="row2">
+          <label class="field"><span>Einschubtiefe</span><div class="unit" data-u="mm"><input type="number" data-k="profile.insert" step="1"></div></label>
+          <label class="field"><span>Armlänge</span><div class="unit" data-u="mm"><input type="number" data-k="profile.arm" step="1"></div></label>
+          <label class="field"><span>Wandung</span><div class="unit" data-u="mm"><input type="number" data-k="profile.shell" step="0.1"></div></label>
+          <label class="field"><span>Innenradius</span><div class="unit" data-u="mm"><input type="number" data-k="profile.fillet" step="0.5"></div></label>
+          <label class="field"><span>Deckel</span><div class="unit" data-u="mm"><input type="number" data-k="profile.cap" step="0.5" min="0"></div></label>
+          <label class="field"><span>Boden (Aufsteck)</span><div class="unit" data-u="mm"><input type="number" data-k="profile.floor_t" step="0.1"></div></label>
+          <label class="field"><span>Einführfase</span><div class="unit" data-u="mm"><input type="number" data-k="profile.lead_in" step="0.1"></div></label>
+          <label class="field"><span>Elefantenfuß</span><div class="unit" data-u="mm"><input type="number" data-k="profile.efc" step="0.1"></div></label>
+          <label class="field"><span>Magnet Ø</span><div class="unit" data-u="mm"><input type="number" data-k="profile.magnet_d" step="0.1"></div></label>
+          <label class="field"><span>Magnet Tiefe</span><div class="unit" data-u="mm"><input type="number" data-k="profile.magnet_h" step="0.1"></div></label>
+          <label class="field"><span>Spiel Wandende</span><div class="unit" data-u="mm"><input type="number" data-k="profile.end_gap" step="0.1"></div></label>
+          <label class="field"><span>Spiel oben</span><div class="unit" data-u="mm"><input type="number" data-k="profile.top_gap" step="0.05"></div></label>
+        </div>
+      </details>
+    </div>
+
+    <div class="sec">
+      <h3>Am Schubladenrand</h3>
+      <div class="seg" id="borderSeg">
+        <label class="opt"><input type="radio" name="border" value="frame"><div><b>Rahmen</b><small>Außenwände mit Ecken und T-Stücken – steht stabil für sich</small></div></label>
+        <label class="opt"><input type="radio" name="border" value="endcap"><div><b>Endstücke</b><small>Wände enden mit einem Endstück an der Schubladenwand</small></div></label>
+        <label class="opt"><input type="radio" name="border" value="rail"><div><b>Raster-Schienen</b><small>Zahnschienen an den Seiten, Wände rasten im Raster ein</small></div></label>
+        <label class="opt"><input type="radio" name="border" value="none"><div><b>Direkt klemmen</b><small>Wände laufen bis zur Schubladenwand, kein Teil am Rand</small></div></label>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h3>Optionen</h3>
+      <label class="check"><input type="checkbox" data-k="settings.slip"><span>Aufsteck-Verbinder<small>Lange Wände laufen durch, Verbinder werden von oben aufgesteckt – weniger, längere Wände</small></span></label>
+      <div class="row2">
+        <label class="field"><span>Max. Wandlänge</span><div class="unit" data-u="mm"><input type="number" data-k="settings.maxLen" step="5" min="40"></div></label>
+        <label class="field"><span>Raster (Fang)</span><div class="unit" data-u="mm"><input type="number" data-k="settings.grid" step="1" min="1"></div></label>
+        <label class="field"><span>Druckbett</span><div class="unit" data-u="mm"><input type="number" data-k="settings.bed" step="1" min="100"></div></label>
+        <label class="field"><span>Abstand Rand</span><div class="unit" data-u="mm"><input type="number" data-k="settings.borderGap" step="0.1" min="0"></div></label>
+      </div>
+      <p class="hint">Längere Wände werden automatisch mit geraden Verbindern geteilt.</p>
+    </div>
+
+    <div class="sec">
+      <h3>Druck</h3>
+      <div class="row2">
+        <label class="field"><span>Wand-Muster</span>
+          <select data-k="settings.pattern"><option value="none">Keins</option><option value="hex">Waben</option><option value="circle">Kreise</option></select></label>
+        <label class="field"><span>Ausrichtung</span>
+          <select data-k="settings.orient"><option value="standing">Stehend</option><option value="flat">Liegend</option></select></label>
+        <label class="field"><span>Griffmulde</span><div class="unit" data-u="mm"><input type="number" data-k="settings.grip" step="1" min="0"></div></label>
+        <label class="field"><span>Material</span>
+          <select data-k="settings.density"><option value="1.24">PLA</option><option value="1.27">PETG</option><option value="1.04">ABS</option><option value="1.07">ASA</option></select></label>
+      </div>
+      <details>
+        <summary>Raster-Schiene</summary>
+        <div class="row">
+          <label class="field"><span>Platte</span><div class="unit" data-u="mm"><input type="number" data-k="settings.railPlate" step="0.1"></div></label>
+          <label class="field"><span>Zahn</span><div class="unit" data-u="mm"><input type="number" data-k="settings.toothT" step="0.1"></div></label>
+          <label class="field"><span>Zahnhöhe</span><div class="unit" data-u="mm"><input type="number" data-k="settings.toothH" step="0.1"></div></label>
+        </div>
+      </details>
+    </div>
+  </aside>
+
+  <section class="stage">
+    <div class="toolbar" id="toolbar">
+      <button class="tool" data-tool="draw" title="Wand zeichnen (W)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20L20 4"/><circle cx="4" cy="20" r="1.5" fill="currentColor"/><circle cx="20" cy="4" r="1.5" fill="currentColor"/></svg><span>Zeichnen</span><kbd>W</kbd></button>
+      <button class="tool" data-tool="split" title="Fach teilen (S)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M12 4v16" stroke-dasharray="3 2"/></svg><span>Teilen</span><kbd>S</kbd></button>
+      <button class="tool" data-tool="select" title="Auswählen & verschieben (V)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l6 17 2.5-7L21 11z"/></svg><span>Auswählen</span><kbd>V</kbd></button>
+      <button class="tool" data-tool="erase" title="Wandstück entfernen (E)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3l5 5-11 11H5v-5z"/><path d="M5 21h14"/></svg><span>Radieren</span><kbd>E</kbd></button>
+      <div class="tsep"></div>
+      <button class="tool" id="btnUndo" title="Rückgängig (Strg+Z)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/></svg></button>
+      <button class="tool" id="btnRedo" title="Wiederholen (Strg+Y)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 000 10h3"/></svg></button>
+      <button class="tool" id="btnGrid" title="Raster-Vorlage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="1.5"/><path d="M9 3v18M15 3v18M3 12h18"/></svg><span>Vorlage</span></button>
+      <button class="tool" id="btnClear" title="Alle Wände löschen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
+      <div class="tsep"></div>
+      <button class="tool" id="btnFit" title="Einpassen (F)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+      <button class="tool" id="btn3d" title="3D-Vorschau"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M12 22V12M3 7l9 5 9-5"/></svg><span>3D</span></button>
+    </div>
+    <div class="subbar" id="splitBar">
+      <span>Teilung</span>
+      <button class="chip" data-n="1">frei</button><button class="chip" data-n="2">2</button><button class="chip" data-n="3">3</button><button class="chip" data-n="4">4</button><button class="chip" data-n="5">5</button><button class="chip" data-n="6">6</button>
+      <span style="margin-left:8px">Richtung</span>
+      <button class="chip" data-dir="v" title="Senkrechte Wand">│</button><button class="chip" data-dir="h" title="Waagerechte Wand">─</button>
+      <span class="hint" style="margin:0 0 0 6px">Shift = Richtung wechseln</span>
+    </div>
+    <div id="canvasWrap">
+      <svg id="svg" xmlns="http://www.w3.org/2000/svg"><g id="root"></g></svg>
+      <div id="three"></div>
+    </div>
+    <div class="statusbar">
+      <span>X <b id="sx">–</b></span><span>Y <b id="sy">–</b></span>
+      <span id="shint" style="flex:1"></span>
+      <span>Zoom <b id="szoom">100 %</b></span>
+    </div>
+  </section>
+
+  <aside class="right">
+    <div class="sec">
+      <h3>Übersicht</h3>
+      <div class="totals">
+        <div class="stat"><b id="tParts">0</b><span>Teile</span></div>
+        <div class="stat"><b id="tComp">0</b><span>Fächer</span></div>
+        <div class="stat"><b id="tGrams">0</b><span>g Filament ca.</span></div>
+      </div>
+    </div>
+    <div class="sec" id="msgSec"><h3>Hinweise</h3><div id="msgs"></div></div>
+    <div class="sec" id="selSec" hidden><h3>Auswahl</h3><div id="selInfo" class="sel-info"></div></div>
+    <div class="sec"><h3>Stückliste <span class="count" id="bomCount"></span></h3><div id="bom"></div></div>
+    <div class="sec">
+      <h3>Legende</h3>
+      <div class="legend">
+        <span><i style="background:var(--wall)"></i>Wand</span>
+        <span><i style="background:var(--conn)"></i>Verbinder</span>
+        <span><i style="background:var(--conn-slip)"></i>Aufsteck</span>
+        <span><i style="background:var(--joint)"></i>Verlängerung</span>
+        <span><i style="background:var(--rail)"></i>Schiene</span>
+      </div>
+      <p class="hint">Mausrad = Zoom · Rechte/mittlere Maustaste = Verschieben · Entf = Auswahl löschen · Esc = Abbrechen</p>
+    </div>
+  </aside>
+</main>
+
+<div id="tip"></div>
+
+<dialog id="gridDlg">
+  <h3>Raster-Vorlage</h3>
+  <p class="hint" style="margin:0 0 12px">Teilt die ganze Schublade in gleich große Fächer. Vorhandene Wände werden ersetzt.</p>
+  <div class="row2">
+    <label class="field"><span>Spalten</span><input type="number" id="gCols" min="1" max="30" value="3"></label>
+    <label class="field"><span>Reihen</span><input type="number" id="gRows" min="1" max="30" value="2"></label>
+  </div>
+  <div class="actions"><button class="btn" value="cancel" id="gCancel">Abbrechen</button><button class="btn primary" id="gOk">Anwenden</button></div>
+</dialog>
+
+<script src="scad_lib.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
