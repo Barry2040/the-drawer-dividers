@@ -1160,7 +1160,18 @@ for (const b of $$('[data-export]')) b.addEventListener('click', () => {
   if (k === 'csv') download(fileBase() + '_stueckliste.csv', bomCsv(), 'text/csv');
   if (k === 'scad') download(fileBase() + '_druckjob.scad', jobScad(), 'text/plain');
   if (k === 'print') window.print();
+  if (k === 'offline') saveOffline();
 });
+
+// The published page is the self-contained build; offer it as a file to keep.
+const offlineBtn = $('[data-export="offline"]');
+offlineBtn.hidden = !(document.querySelector('meta[name="dd-standalone"]') && location.protocol.startsWith('http'));
+async function saveOffline() {
+  try {
+    const html = await fetch(location.href, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(r.status); return r.text(); });
+    download('Drawer-Divider-Designer.html', html, 'text/html');
+  } catch (err) { ask('Download nicht möglich', { text: 'Speichere die Seite stattdessen mit Strg+S.' }); }
+}
 
 // ---------------------------------------------------------------------------
 // Export

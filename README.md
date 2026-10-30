@@ -39,7 +39,7 @@ V3 ist der Nachfolger der beiden MakerWorld-Projekte [V1 – The Drawer Dividers
 
 Am einfachsten **online**: [barry2040.github.io/the-drawer-dividers](https://barry2040.github.io/the-drawer-dividers/). Die Seite wird bei jeder Änderung an `designer/` automatisch neu veröffentlicht.
 
-Oder **lokal**: [`Drawer-Divider-Designer.html`](Drawer-Divider-Designer.html) herunterladen (auf GitHub: Datei öffnen → *Download raw file*) und per Doppelklick im Browser öffnen (Chrome, Edge oder Firefox). Die Datei enthält alles, eine Installation ist nicht nötig. Internet brauchst du nur für die 3D-Vorschau und *STLs erzeugen*.
+Oder **offline**: im Online-Designer *Export → Offline-Version herunterladen* (oder hier im Hauptordner [`Drawer-Divider-Designer.html`](Drawer-Divider-Designer.html) öffnen → *Download raw file*, ca. 150 KB). Wichtig: nur diese Datei aus dem Hauptordner läuft allein, nicht die Dateien aus `designer/`. Dann per Doppelklick im Browser öffnen (Chrome, Edge oder Firefox). Die Datei enthält alles, eine Installation ist nicht nötig. Internet brauchst du nur für die 3D-Vorschau und *STLs erzeugen*.
 
 Erlaubt der Browser bei einer lokalen Datei keinen Hintergrund-Prozess (Worker), rechnet *STLs erzeugen* automatisch direkt in der Seite. Das funktioniert genauso, die Seite reagiert währenddessen nur langsamer.
 
@@ -142,7 +142,7 @@ translate([0, 60, 0]) dd_rail(200, 40, P);
 ```
 Drawer-Divider-Designer.html  der Designer als eine einzige Datei (wird erzeugt) – zum Herunterladen
 designer/                   HTML-Designer, Quelle
-  Drawer-Divider-Designer.html  Oberfläche (Quelle, braucht die .js-Dateien daneben)
+  dev.html                  Oberfläche (Quelle, läuft nur mit den .js-Dateien daneben)
   app.js                      Planung, Stückliste, Prüfungen, 3D-Vorschau, Druckjob
   stl.js                      STL-Erzeugung mit OpenSCAD im Browser, ZIP-Download
   scad_lib.js                 eingebettete SCAD-Bibliothek (wird erzeugt)
@@ -156,7 +156,7 @@ scad/
 dist/makerworld/en/ de/     Einzeldateien für MakerWorld (Bibliothek eingebettet, werden erzeugt)
 legacy/v2-original/         Original-SCADs von V2
 tools/                      Build-Skript und deutsche Übersetzung
-.github/workflows/pages.yml veröffentlicht designer/ auf GitHub Pages
+.github/workflows/pages.yml veröffentlicht Drawer-Divider-Designer.html auf GitHub Pages
 ```
 
 ## Was gegenüber V2 verbessert ist
