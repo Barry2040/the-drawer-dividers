@@ -175,7 +175,8 @@ function make3mf(plates, bed) {
 // ---- dialog ----------------------------------------------------------------
 const stl = { engine: null, results: new Map(), plates: [], job: null };
 const slug = s => s.replace(/×/g, 'x').replace(/[^\w\-. äöüÄÖÜß]+/g, '').trim().replace(/\s+/g, '_');
-const plateFile = pl => `${String(pl.num).padStart(2, '0')}_${slug(pl.label)}.stl`;
+// mixed plates list all their parts, so keep the file name short
+const plateFile = pl => `${String(pl.num).padStart(2, '0')}_${slug(pl.label).slice(0, 80).replace(/_+$/, '')}.stl`;
 function saveBlob(name, blob) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = name;

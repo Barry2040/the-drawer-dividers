@@ -29,19 +29,22 @@
 | | |
 |---|---|
 | ✏️ **Fächer zeichnen** | Wände mit der Maus ziehen, Fächer per Klick in 2–6 Teile teilen, verschieben, radieren – mit Einrasten an Rand, Raster und anderen Wänden |
-| 🗂️ **Vorlagen** | Fertige Aufteilungen als Start: Raster (N × M), Besteck, Werkstatt, Gemischt, Schreibtisch, Kleinteile |
+| 🗂️ **Vorlagen** | Fertige Aufteilungen als Start: Raster (N × M), Besteck, Werkstatt, Gemischt, Schreibtisch, Kleinteile, Werkzeug, Bits & Schrauben, Küche |
 | 🧮 **Stückliste** | Alle Teile mit Maß, Anzahl und Filament – Verbinder nach Typ, Wände nach Länge |
+| 💶 **Kosten & Druckzeit** | Filament in Gramm und Metern, Materialkosten und eine grobe Druckzeit – Preis und Druckleistung stellst du unter *Erweitert* ein |
 | 🔤 **Wandbuchstaben** | Jede Wandlänge bekommt einen Buchstaben (A = längste). Buchstabe und Länge werden ins Wandende graviert, das im Verbinder verschwindet |
 | 🛡️ **Prüfungen** | Zu enge Fächer, sich überschneidende Verbinder, zu hohe Trenner, zu lange Teile fürs Druckbett – alles wird rot markiert und erklärt |
 | 🧱 **Vier Randarten** | Rahmen, Endstücke, Raster-Schienen oder direkt klemmen – plus optional Aufsteck-Verbinder |
 | ⭕ **Runde Ecken** | Hat die Schublade innen runde Ecken, werden die Rahmenecken passend abgerundet |
-| 🏷️ **Beschriftungsclips** | Ein Clip pro Fach zum Aufstecken auf die Wand – mit Stift beschriften oder Etikett aufkleben |
+| 🏷️ **Fachnamen & Clips** | Fächer benennen (anklicken oder doppelklicken). Der Name steht im Plan und wird in den Beschriftungsclip graviert – oder als Etiketten-Liste für [Open Label Studio](https://github.com/Barry2040/open-label-studio) exportiert |
+| 📏 **Messen** | Abstände in der Zeichnung messen, rastet an Wänden und Raster ein |
 | 🐝 **Wandmuster** | Waben, Kreise oder geschlossen – spart Filament und sieht gut aus |
 | 🧊 **3D-Vorschau** | Der ganze Zusammenbau in 3D, inklusive Muster |
-| 🖨️ **STLs im Browser** | OpenSCAD läuft direkt in der Seite und rechnet jede Druckplatte passend zu deinem Druckbett |
+| 🖨️ **STLs im Browser** | OpenSCAD läuft direkt in der Seite und rechnet jede Druckplatte passend zu deinem Druckbett. Die Teile werden gemischt dicht gepackt (weniger Platten) – oder sortenrein |
 | 📦 **3MF & ZIP** | Alle Platten in einer 3MF-Datei (Bambu Studio, OrcaSlicer, PrusaSlicer) oder als ZIP mit STLs, Stückliste und Projekt |
 | 📋 **Aufbauplan** | Zum Ausdrucken oder als PDF: Zeichnung mit Wandbuchstaben, Teileliste und Aufbauschritte |
 | 🔗 **Link teilen** | Das ganze Layout steckt im Link – zum Verschicken oder für MakerWorld |
+| 🗄️ **Mehrere Schubladen** | Beliebig viele Schubladen im Browser, umschalten oben neben dem Namen – mit Gesamt-Stückliste über alle |
 | 💾 **Profile** | Toleranz, Druckbett und Co. für deinen Drucker speichern und bei der nächsten Schublade wieder laden |
 | 🌐 **Sprachen** | Deutsch und Englisch, umschaltbar oben rechts |
 | 🐳 **Docker** | Eigener Server fürs Heimnetz (NAS, Raspberry Pi) – läuft komplett ohne Internet |
@@ -92,8 +95,9 @@ V3 ist der Nachfolger der MakerWorld-Projekte [V1 – The Drawer Dividers](https
    | 🗂️ Vorlage | – | fertige Aufteilung als Start |
    | ➗ Teilen | `S` | Anzahl wählen (`2`–`6` oder *frei*), Richtung wählen (`Shift` wechselt), in ein Fach klicken |
    | ✏️ Zeichnen | `W` | Wand mit der Maus ziehen |
-   | 👆 Auswählen | `V` | Wand anklicken und verschieben, `Entf` löscht sie |
-   | 🧽 Radieren | `E` | entfernt das Wandstück zwischen zwei Verbindern |
+   | 👆 Auswählen | `V` | Wand anklicken und verschieben, `Entf` löscht sie. Fach anklicken, um es zu benennen |
+   | 🧽 Radieren | `E` | entfernt das Wandstück zwischen zwei Verbindern – so legst du auch zwei Fächer zusammen |
+   | 📏 Messen | `M` | Abstand ziehen, `Shift` misst ohne Einrasten |
    | ↩️ Rückgängig | `Strg+Z` / `Strg+Y` | |
    | 🧊 3D | – | Vorschau des Zusammenbaus |
 

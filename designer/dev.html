@@ -50,6 +50,11 @@ header { display: flex; align-items: center; gap: 12px; padding: 8px 14px; backg
 .menu-pop button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 8px 10px; border-radius: 7px; cursor: pointer; }
 .menu-pop button:hover { background: var(--panel-2); }
 .menu-pop button small { display: block; color: var(--muted); }
+.menu.left .menu-pop { left: 0; right: auto; }
+.menu-sep { height: 1px; background: var(--line); margin: 4px 6px; }
+#drawerList button { display: flex; justify-content: space-between; gap: 10px; }
+#drawerList button.on { background: var(--accent-2); color: var(--accent-ink); font-weight: 600; }
+#drawerList button small { display: inline; }
 
 main { flex: 1; display: grid; grid-template-columns: 290px 1fr 340px; min-height: 0; }
 aside { background: var(--panel); overflow-y: auto; }
@@ -140,7 +145,14 @@ h4.sub { margin: 6px 0 8px; font-size: 11px; text-transform: uppercase; letter-s
 .preview-split.bad { stroke: var(--err); }
 .cursor-dot { fill: var(--sel); }
 .edge-label { font-size: 11px; fill: var(--muted); text-anchor: middle; letter-spacing: 1px; text-transform: uppercase; }
-.region-hl { fill: var(--accent); opacity: .08; }
+.region-hl { fill: var(--accent); opacity: .08; pointer-events: none; }
+.region-hl.sel { fill: var(--sel); opacity: .14; }
+.comp-name { font-weight: 700; opacity: .9; }
+.measure { stroke: var(--sel); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.measure-end { fill: var(--sel); }
+.measure-box { fill: var(--panel); stroke: var(--sel); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.measure-txt { fill: var(--sel); font-weight: 600; text-anchor: middle; dominant-baseline: central; font-variant-numeric: tabular-nums; pointer-events: none; }
+#svg.t-measure { cursor: crosshair; }
 
 /* bom */
 .bom-group { margin-bottom: 14px; }
@@ -157,6 +169,7 @@ h4.sub { margin: 6px 0 8px; font-size: 11px; text-transform: uppercase; letter-s
 .stat { background: var(--panel-2); border-radius: 8px; padding: 8px 10px; }
 .stat b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
 .stat span { color: var(--muted); font-size: 11px; }
+#tTime, #tCost { font-size: 15px; line-height: 22px; white-space: nowrap; }
 .msg { padding: 7px 10px; border-radius: 8px; margin-bottom: 6px; font-size: 12px; display: flex; gap: 8px; }
 .msg.warn { background: var(--warn-bg); color: var(--warn); }
 .msg.err { background: var(--err-bg); color: var(--err); }
@@ -223,6 +236,20 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
     Drawer Divider <small>Designer</small>
   </div>
   <input id="projName" value="Meine Schublade" title="Projektname">
+  <div class="menu left" id="drawerMenu">
+    <button class="btn" id="btnDrawers" title="Mehrere Schubladen in diesem Browser">Schubladen <b id="drawerCount"></b>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+    <div class="menu-pop">
+      <div id="drawerList"></div>
+      <div class="menu-sep"></div>
+      <button data-drawer="add"><b>Neue Schublade</b><small>Leer, mit den Einstellungen dieser Schublade</small></button>
+      <button data-drawer="dup"><b>Schublade duplizieren</b><small>Kopie dieser Schublade zum Abwandeln</small></button>
+      <button data-drawer="del"><b>Diese Schublade löschen</b><small>Entfernt sie aus der Liste</small></button>
+      <div class="menu-sep"></div>
+      <button data-drawer="csv"><b>Gesamt-Stückliste (CSV)</b><small>Alle Teile aller Schubladen zusammengezählt</small></button>
+      <button data-drawer="save"><b>Alle Schubladen speichern</b><small>Eine .json mit allen – „Öffnen“ lädt sie wieder</small></button>
+    </div>
+  </div>
   <div class="spacer"></div>
   <button class="btn" id="btnLang" title="Sprache / Language">EN</button>
   <button class="btn" id="btnNew" title="Neues Projekt">Neu</button>
@@ -236,6 +263,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
       <button data-export="scad"><b>OpenSCAD-Druckjob</b><small>Alle Teile in einer .scad – Teil wählen, STL exportieren</small></button>
       <button data-export="link"><b>Link teilen</b><small>Das ganze Layout steckt im Link – zum Verschicken oder für MakerWorld</small></button>
       <button data-export="csv"><b>Stückliste (CSV)</b><small>Für Excel / Tabellen</small></button>
+      <button data-export="labels"><b>Etiketten-Liste (CSV)</b><small>Fachnamen und Maße – in Open Label Studio unter Seriendruck laden</small></button>
       <button data-export="print"><b>Aufbauplan drucken / PDF</b><small>Plan mit Wandbuchstaben, Teileliste und Aufbauschritte</small></button>
       <button data-export="offline" hidden><b>Offline-Version herunterladen</b><small>Der ganze Designer als eine Datei, läuft ohne Internet</small></button>
     </div>
@@ -305,6 +333,11 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
           <label class="field"><span>Griffmulde</span><div class="unit" data-u="mm"><input type="number" data-k="settings.grip" step="1" min="0"></div></label>
           <label class="field"><span>Raster (Fang)</span><div class="unit" data-u="mm"><input type="number" data-k="settings.grid" step="1" min="1"></div></label>
           <label class="field"><span>Abstand Rand</span><div class="unit" data-u="mm"><input type="number" data-k="settings.borderGap" step="0.1" min="0"></div></label>
+          <label class="field" title="Gemischt: alle Teile so dicht wie möglich, weniger Platten. Sortenrein: jede Platte nur eine Teilesorte."><span>Druckplatten</span>
+            <select data-k="settings.pack"><option value="mixed">Gemischt</option><option value="single">Sortenrein</option></select></label>
+          <label class="field" title="Grobe Druckleistung deines Druckers – ca. 10–15 g/h bei älteren, 25–40 g/h bei schnellen Druckern"><span>Druckleistung</span><div class="unit" data-u="g/h"><input type="number" data-k="settings.rate" step="1" min="1"></div></label>
+          <label class="field"><span>Filamentpreis</span><div class="unit" data-u="/kg"><input type="number" data-k="settings.price" step="1" min="0"></div></label>
+          <label class="field"><span>Währung</span><input type="text" data-k="settings.currency" maxlength="4"></label>
         </div>
         <label class="check"><input type="checkbox" data-k="settings.clips"><span>Beschriftungsclips<small>Ein Clip pro Fach zum Aufstecken auf die Wand – mit Stift beschriften oder Etikett aufkleben</small></span></label>
         <label class="check"><input type="checkbox" data-k="settings.labels"><span>Wände beschriften<small>Buchstabe und Länge werden in die Wandenden graviert (verschwinden im Verbinder) und stehen im Plan</small></span></label>
@@ -341,6 +374,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
       <button class="tool" data-tool="split" title="Fach teilen (S)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M12 4v16" stroke-dasharray="3 2"/></svg><span>Teilen</span><kbd>S</kbd></button>
       <button class="tool" data-tool="select" title="Auswählen & verschieben (V)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l6 17 2.5-7L21 11z"/></svg><span>Auswählen</span><kbd>V</kbd></button>
       <button class="tool" data-tool="erase" title="Wandstück entfernen (E)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3l5 5-11 11H5v-5z"/><path d="M5 21h14"/></svg><span>Radieren</span><kbd>E</kbd></button>
+      <button class="tool" data-tool="measure" title="Messen (M)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 15l12-12 6 6-12 12z"/><path d="M7 11l2 2M10 8l2 2M13 5l2 2"/></svg><span>Messen</span><kbd>M</kbd></button>
       <div class="tsep"></div>
       <button class="tool" id="btnUndo" title="Rückgängig (Strg+Z)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/></svg></button>
       <button class="tool" id="btnRedo" title="Wiederholen (Strg+Y)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 000 10h3"/></svg></button>
@@ -374,7 +408,10 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
       <div class="totals">
         <div class="stat"><b id="tParts">0</b><span>Teile</span></div>
         <div class="stat"><b id="tComp">0</b><span>Fächer</span></div>
-        <div class="stat"><b id="tGrams">0</b><span>g Filament ca.</span></div>
+        <div class="stat" title="So viele Druckplatten rechnet „STLs erzeugen“"><b id="tPlates">0</b><span>Druckplatten</span></div>
+        <div class="stat"><b id="tGrams">0</b><span id="tGramsU">g Filament ca.</span></div>
+        <div class="stat" title="Filamentpreis unter Erweitert"><b id="tCost">0</b><span id="tCostU">€ Material ca.</span></div>
+        <div class="stat" title="Grobe Schätzung aus dem Gewicht – Druckleistung unter Erweitert"><b id="tTime">0</b><span>Druckzeit ca.</span></div>
       </div>
     </div>
     <div class="sec" id="msgSec"><h3>Hinweise</h3><div id="msgs"></div></div>
@@ -408,6 +445,9 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
       <option value="mixed">Gemischt – 2 große + 4 kleine Fächer</option>
       <option value="desk">Schreibtisch – schmal, breit, schmal</option>
       <option value="small">Kleinteile – 4 × 4 kleine Fächer</option>
+      <option value="tools">Werkzeug – 3 lange Fächer + 5 kleine an der Seite</option>
+      <option value="bits">Bits &amp; Schrauben – 6 × 3 schmale Fächer</option>
+      <option value="kitchen">Küche – großes Mittelfach, kleine Fächer links und rechts</option>
     </select></label>
   <div class="row2" id="gGridRow">
     <label class="field"><span>Spalten</span><input type="number" id="gCols" min="1" max="30" value="3"></label>

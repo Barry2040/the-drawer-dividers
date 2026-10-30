@@ -37,15 +37,17 @@ const cappedSet = t => S.settings.slip && !t.startsWith('slip');
 const typeName = t => (cappedSet(t) ? T('Aufsteck-') : '') + TYPES[t].name;
 const typeDesc = t => TYPES[t].desc + (cappedSet(t) ? T(', Wände enden darin') : '');
 const TYPE_ORDER = Object.keys(TYPES);
+const quote = t => LANG === 'en' ? `“${t}”` : `„${t}“`;
+const clipName = x => T('Beschriftungsclip') + (x.label ? ' ' + quote(x.label) : '');
 
 function defaultSettings() {
   return { border: 'frame', slip: false, autoH: true, maxLen: 240, grid: 5, bed: 256, borderGap: 0.5, noneGap: 1,
            pattern: 'hex', orient: 'standing', grip: 0, density: '1.24', labels: true, clips: false,
-           railPlate: 2.5, toothT: 2, toothH: 6 };
+           railPlate: 2.5, toothT: 2, toothH: 6, pack: 'mixed', price: 25, currency: '€', rate: 20 };
 }
 function defaultState() {
   return { version: 3, name: T('Meine Schublade'), drawer: { w: 400, d: 300, h: 60, r: 0 },
-           preset: '', profile: { ...DEFAULT_PROFILE }, settings: defaultSettings(), walls: [] };
+           preset: '', profile: { ...DEFAULT_PROFILE }, settings: defaultSettings(), walls: [], names: [] };
 }
 
 // ---------------------------------------------------------------------------
@@ -320,7 +322,12 @@ function analyze(S) {
   if (g.cornerWant > g.cornerMax + EPS) msgs.push({ lvl: 'warn', text: T`Eckradius zu groß: Die Rahmenecken lassen sich nur bis ${fmt(g.cornerMax)} mm runden, sonst würden die Schlitze angeschnitten. Mehr Abstand zum Rand oder Endstücke helfen.` });
   if (st.slip && p.cap === 0) msgs.push({ lvl: 'info', text: T`Aufsteck-Modus: Alle Wände sind ${fmt(p.floor_t)} mm niedriger, damit die Aufsteck-Verbinder bündig sitzen.` });
 
-  const bom = buildBom(S, g, nodes, pieces, rails, comps.list.length);
+  // compartment names: each sits on a point, the compartment around that point carries it
+  for (const nm of S.names || []) {
+    const cell = comps.cellOf(nm.x, nm.y), R = cell && comps.list.find(R => R.id === cell.r);
+    if (R && !R.name) R.name = nm.text;
+  }
+  const bom = buildBom(S, g, nodes, pieces, rails, comps.list.map(R => R.name || ''));
   const conflicts = pieces.filter(pc => pc.bad).length + collisions;
   return { g, H, V, lines, nodes: [...nodes.values()], pieces, rails, comps, bom, msgs, conflicts };
 }
@@ -446,7 +453,7 @@ function wallHoleFraction(len, h, S) {
 }
 
 const wallLetter = i => i < 26 ? String.fromCharCode(65 + i) : String.fromCharCode(64 + Math.floor(i / 26)) + String.fromCharCode(65 + i % 26);
-function buildBom(S, g, nodes, pieces, rails, clipCount = 0) {
+function buildBom(S, g, nodes, pieces, rails, clipNames = []) {
   const p = S.profile, dens = parseFloat(S.settings.density) / 1000;
   const conns = new Map(), walls = new Map(), railMap = new Map();
   for (const n of nodes.values()) if (n.kind === 'conn') conns.set(n.type, (conns.get(n.type) || 0) + 1);
@@ -473,10 +480,14 @@ function buildBom(S, g, nodes, pieces, rails, clipCount = 0) {
     }),
   };
   out.extras = [];
-  if (S.settings.clips && clipCount) {
-    // label clip, see dd_label_clip(): U around the wall plus the slanted face, 40 mm wide
+  if (S.settings.clips && clipNames.length) {
+    // label clip, see dd_label_clip(): U around the wall plus the slanted face, 40 mm wide;
+    // one per compartment, named compartments get their name engraved
     const w = 1.2, gap = g.t + 0.15, area = (gap + 2 * w) * (8 + w) - gap * 8 + 12 * w;
-    out.extras.push({ kind: 'clip', qty: clipCount, g: area * 40 * dens });
+    const byName = new Map();
+    for (const n of clipNames) byName.set(n, (byName.get(n) || 0) + 1);
+    for (const [label, qty] of [...byName].sort((a, b) => !a[0] - !b[0] || a[0].localeCompare(b[0])))
+      out.extras.push({ kind: 'clip', label, qty, g: area * 40 * dens });
   }
   const all = [...out.connectors, ...out.walls, ...out.rails, ...out.extras];
   out.parts = all.reduce((s, x) => s + x.qty, 0);
@@ -489,6 +500,19 @@ function buildBom(S, g, nodes, pieces, rails, clipCount = 0) {
 // ---------------------------------------------------------------------------
 let S = loadStored() || withSample(defaultState());
 syncAuto(S);
+// All drawers of this browser; S is the open one and always shelf.list[shelf.cur].
+const SHELF_KEY = 'dd-designer-drawers';
+const shelf = (() => {
+  try {
+    const o = JSON.parse(localStorage.getItem(SHELF_KEY));
+    if (o && Array.isArray(o.list) && o.list.length) {
+      const list = o.list.map(migrate), cur = clamp(o.cur | 0, 0, list.length - 1);
+      list[cur] = S;   // the single-drawer key is written last, it wins
+      return { list, cur };
+    }
+  } catch { /* storage unavailable: just this drawer */ }
+  return { list: [S], cur: 0 };
+})();
 let A = null;
 const hist = { past: [], future: [] };
 const ui = { tool: 'draw', view: { s: 1, tx: 0, ty: 0 }, drag: null, hover: null, sel: null, mouse: null,
@@ -505,13 +529,22 @@ function migrate(o) {
   const d = defaultState();
   if (!o || typeof o !== 'object') return d;
   const r = { ...d, ...o, drawer: { ...d.drawer, ...o.drawer }, profile: { ...d.profile, ...o.profile },
-              settings: { ...d.settings, ...o.settings }, walls: Array.isArray(o.walls) ? o.walls.filter(w => w && (w.o === 'h' || w.o === 'v')) : [] };
+              settings: { ...d.settings, ...o.settings }, walls: Array.isArray(o.walls) ? o.walls.filter(w => w && (w.o === 'h' || w.o === 'v')) : [],
+              names: Array.isArray(o.names) ? o.names.filter(n => n && isFinite(n.x) && isFinite(n.y) && typeof n.text === 'string').map(n => ({ x: +n.x, y: +n.y, text: cleanName(n.text) })).filter(n => n.text) : [] };
   if (['v1', 'v2', 'custom'].includes(r.preset)) r.preset = '';   // old built-in presets
   if (o.settings && !('autoH' in o.settings)) r.settings.autoH = false;   // older saves: keep their own height
   syncAuto(r);
   return r;
 }
-function persist() { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch { /* storage unavailable */ } }
+// a compartment name, also engraved on its clip: one line, no control characters
+function cleanName(t) { return String(t).replace(/[\u0000-\u001f\u007f"\\]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 30); }
+function persist() {
+  shelf.list[shelf.cur] = S;
+  try {
+    localStorage.setItem(SHELF_KEY, JSON.stringify({ list: shelf.list, cur: shelf.cur }));
+    localStorage.setItem(STORE_KEY, JSON.stringify(S));
+  } catch { /* storage unavailable */ }
+}
 
 function snapshot() { return JSON.stringify(S); }
 function commit(before) {
@@ -521,8 +554,8 @@ function commit(before) {
   persist(); render();
 }
 function mutate(fn) { const before = snapshot(); fn(); commit(before); }
-function undo() { if (!hist.past.length) return; hist.future.push(snapshot()); S = JSON.parse(hist.past.pop()); ui.sel = null; syncInputs(); persist(); render(); }
-function redo() { if (!hist.future.length) return; hist.past.push(snapshot()); S = JSON.parse(hist.future.pop()); ui.sel = null; syncInputs(); persist(); render(); }
+function undo() { if (!hist.past.length) return; hist.future.push(snapshot()); S = JSON.parse(hist.past.pop()); ui.sel = null; ui.selComp = null; syncInputs(); persist(); render(); }
+function redo() { if (!hist.future.length) return; hist.past.push(snapshot()); S = JSON.parse(hist.future.pop()); ui.sel = null; ui.selComp = null; syncInputs(); persist(); render(); }
 
 // equal-split positions so the *net* compartments come out equal
 function equalSplit(c0, c1, n, off0, off1, t) {
@@ -703,6 +736,11 @@ function drawSVG() {
       out.push(`<rect class="region-hl" x="${x0}" y="${y0}" width="${r2(x1 - x0)}" height="${r2(y1 - y0)}"/>`);
     }
   }
+  const selR = ui.tool === 'select' && ui.selComp ? compAt(ui.selComp) : null;
+  if (selR) for (const [ci, cj] of selR.cells) {
+    const x0 = A.comps.xs[ci], x1 = A.comps.xs[ci + 1], y0 = A.comps.ys[cj], y1 = A.comps.ys[cj + 1];
+    out.push(`<rect class="region-hl sel" x="${x0}" y="${y0}" width="${r2(x1 - x0)}" height="${r2(y1 - y0)}"/>`);
+  }
   if (g.B > 0) out.push(`<rect class="inset" x="${g.B}" y="${g.B}" width="${r2(W - 2 * g.B)}" height="${r2(D - 2 * g.B)}"/>`);
 
   // rails
@@ -748,12 +786,16 @@ function drawSVG() {
   if (fs < 40) for (const R of A.comps.list) {
     const w = R.x1 - R.x0, h = R.y1 - R.y0;
     const label = R.rect ? `${fmt(R.netW, 0)} × ${fmt(R.netD, 0)}` : `${fmt(R.area / 100, 0)} cm²`;
-    const fsz = Math.min(fs * 1.15, w / (label.length * 0.62), h / 2.2);
-    if (fsz * s >= 7) {
-      const cx = R.rect ? (R.x0 + R.x1) / 2 : (A.comps.xs[R.cells[0][0]] + A.comps.xs[R.cells[0][0] + 1]) / 2;
-      const cy = R.rect ? (R.y0 + R.y1) / 2 : (A.comps.ys[R.cells[0][1]] + A.comps.ys[R.cells[0][1] + 1]) / 2;
-      out.push(`<text class="comp-label" x="${r2(cx)}" y="${r2(cy)}" style="font-size:${r2(fsz)}px">${label}</text>`);
-    }
+    const cw = R.rect ? w : A.comps.xs[R.cells[0][0] + 1] - A.comps.xs[R.cells[0][0]];
+    const fsz = Math.min(fs * 1.15, cw / (label.length * 0.62), h / 2.2);
+    const cx = R.rect ? (R.x0 + R.x1) / 2 : (A.comps.xs[R.cells[0][0]] + A.comps.xs[R.cells[0][0] + 1]) / 2;
+    const cy = R.rect ? (R.y0 + R.y1) / 2 : (A.comps.ys[R.cells[0][1]] + A.comps.ys[R.cells[0][1] + 1]) / 2;
+    if (R.name) {
+      // the name above, the size small below it
+      const nsz = Math.min(fs * 1.3, cw / ([...R.name].length * 0.62), h / 3.2);
+      if (nsz * s >= 6) out.push(`<text class="comp-label comp-name" x="${r2(cx)}" y="${r2(cy - nsz * 0.55)}" style="font-size:${r2(nsz)}px">${esc(R.name)}</text>`);
+      if (fsz * 0.8 * s >= 6) out.push(`<text class="comp-label" x="${r2(cx)}" y="${r2(cy + fsz * 0.75)}" style="font-size:${r2(fsz * 0.8)}px">${label}</text>`);
+    } else if (fsz * s >= 7) out.push(`<text class="comp-label" x="${r2(cx)}" y="${r2(cy)}" style="font-size:${r2(fsz)}px">${label}</text>`);
   }
   if (s > 1.4) for (const pc of A.pieces) {
     if (pc.len < 25) continue;
@@ -777,6 +819,20 @@ function drawSVG() {
     const q = snapPt(ui.mouse.x, ui.mouse.y);
     out.push(`<circle class="cursor-dot" cx="${q.x}" cy="${q.y}" r="${3 / s}"/>`);
   }
+  const ms = ui.measure;
+  if (ms && (ms.p0.x !== ms.p1.x || ms.p0.y !== ms.p1.y)) {
+    const { p0, p1 } = ms, dx = Math.abs(p1.x - p0.x), dy = Math.abs(p1.y - p0.y), L = Math.hypot(dx, dy);
+    const txt = fmt(L) + ' mm' + (dx > EPS && dy > EPS ? `  (${fmt(dx)} × ${fmt(dy)})` : '');
+    const fz = 12 / s, bw = txt.length * fz * 0.58 + 10 / s, bh = fz * 1.7, mx = (p0.x + p1.x) / 2, my = (p0.y + p1.y) / 2 - bh;
+    out.push(`<line class="measure" x1="${p0.x}" y1="${p0.y}" x2="${p1.x}" y2="${p1.y}"/>`,
+             `<circle class="measure-end" cx="${p0.x}" cy="${p0.y}" r="${3 / s}"/><circle class="measure-end" cx="${p1.x}" cy="${p1.y}" r="${3 / s}"/>`,
+             `<rect class="measure-box" x="${r2(mx - bw / 2)}" y="${r2(my - bh / 2)}" width="${r2(bw)}" height="${r2(bh)}" rx="${r2(4 / s)}"/>`,
+             `<text class="measure-txt" x="${r2(mx)}" y="${r2(my)}" style="font-size:${r2(fz)}px">${txt}</text>`);
+  }
+  if (ui.tool === 'measure' && ui.mouse && !d) {
+    const q = measurePt(ui.mouse);
+    out.push(`<circle class="cursor-dot" cx="${q.x}" cy="${q.y}" r="${3 / s}"/>`);
+  }
   if (ui.tool === 'split' && ui.splitPreview)
     for (const w of ui.splitPreview)
       out.push(w.o === 'v' ? `<line class="preview-split${ui.splitBad ? ' bad' : ''}" x1="${w.c}" y1="${w.a}" x2="${w.c}" y2="${w.b}"/>`
@@ -797,12 +853,28 @@ function iconSvg(kind, type) {
   return `<svg viewBox="0 0 28 28">${connSvg(n, g, p, 'conn' + (S.settings.slip ? ' slip' : '') + (type === 'straight' ? ' joint' : ''))}</svg>`;
 }
 
+// filament length (1.75 mm), material cost and a rough print time from the weight
+function usage(grams) {
+  const st = S.settings, dens = parseFloat(st.density) || 1.24;
+  const meters = grams / dens * 1000 / (Math.PI * 0.875 * 0.875) / 1000;
+  const hours = grams / Math.max(1, +st.rate || 20);
+  const mins = Math.round(hours * 60 / 5) * 5;
+  const time = !grams ? '0' : mins < 60 ? `${Math.max(5, mins)} min` : `${Math.floor(mins / 60)} h${mins % 60 ? ' ' + (mins % 60) + ' min' : ''}`;
+  return { meters, cost: grams / 1000 * (+st.price || 0), hours, time };
+}
 const wallBadge = id => `<span class="wall-badge">${id}</span>`;
 function drawPanels() {
   const b = A.bom, g = A.g;
+  drawMenu();
   $('#tParts').textContent = b.parts;
   $('#tComp').textContent = A.comps.list.length;
   $('#tGrams').textContent = fmt(b.grams, 0);
+  const use = usage(b.grams);
+  $('#tGramsU').textContent = T`g Filament · ${fmt(use.meters, use.meters < 10 ? 1 : 0)} m`;
+  $('#tCost').textContent = fmt(use.cost, 2);
+  $('#tCostU').textContent = T`${S.settings.currency || ''} Material ca.`;
+  $('#tTime').textContent = use.time;
+  $('#tPlates').textContent = b.parts ? platesFor().length : 0;
   $('#bomCount').textContent = b.parts ? T`${b.parts} Teile` : '';
 
   let h = '';
@@ -820,7 +892,7 @@ function drawPanels() {
   }
   if (b.extras.length) {
     h += `<div class="bom-group"><h4><span>${T('Zubehör')}</span><span>${b.extras.reduce((s, c) => s + c.qty, 0)}</span></h4>`;
-    for (const x of b.extras) h += item(iconSvg('clip'), T('Beschriftungsclip'), T`Wird oben auf eine Wand gesteckt · ca. ${fmt(x.g)} g`, x.qty);
+    for (const x of b.extras) h += item(iconSvg('clip'), esc(clipName(x)), (x.label ? T('Name eingraviert') : T('Wird oben auf eine Wand gesteckt')) + T` · ca. ${fmt(x.g)} g`, x.qty);
     h += '</div>';
   }
   if (b.rails.length) {
@@ -846,6 +918,13 @@ function drawPanels() {
       <dt>${T('Mittellinie')}</dt><dd>${fmt(w.b - w.a)} mm</dd>
       <dt>${T('Druckteile')}</dt><dd>${parts.map(pc => fmt(pc.len) + ' mm').join(', ') || '–'}</dd></dl>
       <p class="hint">${T('Ziehen zum Verschieben · Entf zum Löschen')}</p>`;
+  } else if (ui.selComp && compAt(ui.selComp)) {
+    const R = compAt(ui.selComp);
+    sec.hidden = false;
+    $('#selInfo').innerHTML = `<label class="field"><span>${T('Name des Fachs')}</span><input type="text" id="compName" maxlength="30" placeholder="${T('z.B. Schrauben')}" value="${esc(R.name || '')}"></label>
+      <dl><dt>${T('Innenmaß')}</dt><dd>${R.rect ? `${fmt(R.netW)} × ${fmt(R.netD)} mm` : `${fmt(R.area / 100, 0)} cm²`}</dd></dl>
+      <p class="hint">${S.settings.clips ? T('Der Name wird in den Beschriftungsclip des Fachs graviert.') : T('Mit „Beschriftungsclips“ (Erweitert) wird der Name in einen Clip graviert.')}</p>`;
+    $('#compName').addEventListener('change', e => setCompName(ui.selComp, e.target.value));
   } else sec.hidden = true;
 }
 
@@ -854,7 +933,8 @@ function drawPlan() {
   const b = A.bom, st = S.settings;
   const edge = { frame: T('Rahmen'), endcap: T('Endstücke'), rail: T('Raster-Schienen'), none: T('direkt geklemmt') }[st.border];
   const steps = [];
-  steps.push(T`Alle Teile drucken (${b.parts} Teile, ca. ${fmt(b.grams, 0)} g).` + (st.labels ? T(' In jedes Wandende ist sein Buchstabe und seine Länge graviert.') : ''));
+  const use = usage(b.grams);
+  steps.push(T`Alle Teile drucken (${b.parts} Teile auf ${b.parts ? platesFor().length : 0} Druckplatten, ca. ${fmt(b.grams, 0)} g, ca. ${use.time}).` + (st.labels ? T(' In jedes Wandende ist sein Buchstabe und seine Länge graviert.') : ''));
   if (st.border === 'rail') steps.push(T('Raster-Schienen an die Schubladenseiten kleben oder schrauben – zusammengesetzte Schienen mit Zapfen in die Buchse stecken.'));
   if (st.border === 'frame') steps.push(T('Mit dem Rahmen beginnen: Ecken, T-Stücke und die Außenwände zu einem Rechteck zusammenstecken.'));
   if (b.connectors.some(c => c.type === 'straight')) steps.push(T('Geteilte lange Wände mit den geraden Verlängerungen verbinden.'));
@@ -863,14 +943,15 @@ function drawPlan() {
     : T('Innenwände nach dem Plan einsetzen – die Buchstaben im Plan zeigen, welche Wand wohin gehört. Von einer Seite zur anderen arbeiten, jeweils Wand in den Verbinder schieben.'));
   if (st.border === 'endcap') steps.push(T('Die Endstücke sitzen an der Schubladenwand – das Ganze am Stück in die Schublade setzen.'));
   else if (st.border !== 'rail') steps.push(T('Das fertige Gitter in die Schublade setzen.'));
-  if (b.extras.length) steps.push(T('Beschriftungsclips beschriften und oben auf die Wände der Fächer stecken.'));
+  if (b.extras.length) steps.push(b.extras.some(x => x.label) ? T('Die Beschriftungsclips oben auf die Wände ihrer Fächer stecken – unbenannte mit Stift beschriften.')
+                                                               : T('Beschriftungsclips beschriften und oben auf die Wände der Fächer stecken.'));
   $('#plan').innerHTML = `<h4>${esc(S.name)}</h4>
     <div class="hint">${T`Schublade ${S.drawer.w} × ${S.drawer.d} × ${S.drawer.h} mm · Rand: ${edge}`}${st.slip ? T(' · Aufsteck-Verbinder') : ''} · ${T`Wände ${fmt(A.g.t)} × ${fmt(A.g.wallH)} mm`}</div>
     <table><tr><th>${T('Teil')}</th><th>${T('Maß')}</th><th>${T('Anzahl')}</th></tr>
       ${b.walls.map(w => `<tr><td><b>${T`Wand ${w.id}`}</b></td><td>${fmt(w.len)} mm</td><td>${w.qty}×</td></tr>`).join('')}
       ${b.connectors.map(c => `<tr><td>${typeName(c.type)}</td><td>${T`${fmt(S.profile.height)} mm hoch`}</td><td>${c.qty}×</td></tr>`).join('')}
       ${b.rails.map(r => `<tr><td>${T('Schiene')}</td><td>${fmt(r.len)} mm</td><td>${r.qty}×</td></tr>`).join('')}
-      ${b.extras.map(x => `<tr><td>${T('Beschriftungsclip')}</td><td>${T('40 mm breit')}</td><td>${x.qty}×</td></tr>`).join('')}
+      ${b.extras.map(x => `<tr><td>${esc(clipName(x))}</td><td>${T('40 mm breit')}</td><td>${x.qty}×</td></tr>`).join('')}
     </table>
     <ol>${steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>`;
 }
@@ -1027,15 +1108,16 @@ $('#projName').addEventListener('change', e => mutate(() => { S.name = e.target.
 // Tools & pointer interaction
 // ---------------------------------------------------------------------------
 function setTool(t) {
-  ui.tool = t; ui.drag = null; ui.eraseHL = null; ui.splitPreview = null; ui.splitRegion = null;
-  if (t !== 'select') ui.sel = null;
+  ui.tool = t; ui.drag = null; ui.eraseHL = null; ui.measure = null; ui.splitPreview = null; ui.splitRegion = null;
+  if (t !== 'select') { ui.sel = null; ui.selComp = null; }
   for (const b of $$('.tool[data-tool]')) b.classList.toggle('on', b.dataset.tool === t);
   svg.setAttribute('class', 't-' + t);
   $('#splitBar').classList.toggle('show', t === 'split');
   const hints = { draw: T('Klicken & ziehen, um eine Wand zu zeichnen. Endpunkte rasten an Rand, Raster und bestehenden Wänden ein.'),
                   split: T('In ein Fach klicken, um es zu teilen. Zahl 1–6 = Anzahl Fächer, Shift = Richtung.'),
-                  select: T('Wand anklicken zum Auswählen, ziehen zum Verschieben.'),
-                  erase: T('Wandstück zwischen zwei Verbindern anklicken, um es zu entfernen.') };
+                  select: T('Wand anklicken zum Auswählen, ziehen zum Verschieben. Fach anklicken (oder doppelklicken), um es zu benennen.'),
+                  erase: T('Wandstück zwischen zwei Verbindern anklicken, um es zu entfernen.'),
+                  measure: T('Ziehen, um einen Abstand zu messen. Rastet an Wänden und Raster ein, Shift = frei.') };
   $('#shint').textContent = hints[t];
   render();
 }
@@ -1077,6 +1159,29 @@ function hitLineInterval(m) {
 function hitNode(m) {
   const tol = Math.max(A.g.armW / 2, 6 / ui.view.s);
   return A.nodes.find(n => n.kind === 'conn' && Math.abs(n.x - m.x) < tol && Math.abs(n.y - m.y) < tol);
+}
+
+// the compartment under a point (null on a wall or outside)
+// measuring snaps like drawing (walls, grid, edges); Shift measures freely
+const measurePt = m => ui.shift ? { x: r2(m.x), y: r2(m.y) } : snapPt(m.x, m.y);
+function compAt(m) {
+  const cell = A.comps.cellOf(m.x, m.y);
+  return cell ? A.comps.list.find(R => R.id === cell.r) || null : null;
+}
+function setCompName(pt, text) {
+  const R = compAt(pt);
+  if (!R) return;
+  text = cleanName(text);
+  mutate(() => {
+    S.names = (S.names || []).filter(n => compAt(n) !== R);
+    if (text) S.names.push({ x: r2(pt.x), y: r2(pt.y), text });
+  });
+}
+async function nameDialog(m) {
+  const R = compAt(m);
+  if (!R) return;
+  const t = await ask(T('Fach benennen'), { text: T('Erscheint im Plan und auf dem Beschriftungsclip. Leer lassen entfernt den Namen.'), input: R.name || '', allowEmpty: true });
+  if (t !== null) setCompName(m, t);
 }
 
 function computeSplit(m) {
@@ -1127,7 +1232,7 @@ svg.addEventListener('pointerdown', e => {
   if (ui.tool === 'draw') ui.drag = { type: 'draw', p0: snapPt(m.x, m.y), p1: null };
   else if (ui.tool === 'select') {
     const i = hitUserWall(m);
-    ui.sel = i;
+    ui.sel = i; ui.selComp = i === null && compAt(m) ? { x: r2(m.x), y: r2(m.y) } : null;
     if (i !== null) ui.drag = { type: 'move', idx: i, start: m, c0: S.walls[i].c, before: snapshot() };
     render();
   } else if (ui.tool === 'erase') {
@@ -1135,6 +1240,9 @@ svg.addEventListener('pointerdown', e => {
     if (!iv) return;
     if (iv.frame) { flash(T('Der Rahmen gehört zum Randmodus „Rahmen" – ändere links den Rand, um ihn zu entfernen.')); return; }
     mutate(() => eraseInterval(iv));
+  } else if (ui.tool === 'measure') {
+    const q = measurePt(m);
+    ui.measure = { p0: q, p1: q }; ui.drag = { type: 'measure' }; drawSVG();
   } else if (ui.tool === 'split') {
     computeSplit(m);
     if (ui.splitPreview && ui.splitPreview.length) {
@@ -1152,6 +1260,8 @@ svg.addEventListener('pointermove', e => {
   if (d && d.type === 'draw') {
     const q = snapPt(m.x, m.y);
     d.p1 = Math.abs(q.x - d.p0.x) >= Math.abs(q.y - d.p0.y) ? { x: q.x, y: d.p0.y } : { x: d.p0.x, y: q.y };
+  } else if (d && d.type === 'measure') {
+    ui.measure.p1 = measurePt(m);
   } else if (d && d.type === 'move') {
     const w = S.walls[d.idx], delta = w.o === 'h' ? m.y - d.start.y : m.x - d.start.x;
     const old = w.c; w.c = d.c0;
@@ -1181,6 +1291,11 @@ svg.addEventListener('pointerup', e => {
     if (w.c !== d.c0 && badPieces(S) > badPieces(JSON.parse(d.before))) { w.c = d.c0; flash(TOO_CLOSE()); render(); }
     commit(d.before);
   } else drawSVG();
+});
+svg.addEventListener('dblclick', e => {
+  if (ui.is3d || !['select', 'draw'].includes(ui.tool)) return;
+  const m = toMM(e);
+  if (hitUserWall(m) === null) nameDialog(m);
 });
 svg.addEventListener('pointerleave', () => { ui.mouse = null; ui.eraseHL = null; ui.splitPreview = null; ui.splitRegion = null; showTip(null); if (!ui.drag) drawSVG(); });
 svg.addEventListener('wheel', e => {
@@ -1219,9 +1334,10 @@ window.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && k === 'y') { e.preventDefault(); redo(); return; }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (k === 'w') setTool('draw'); else if (k === 's') setTool('split'); else if (k === 'v') setTool('select'); else if (k === 'e') setTool('erase');
+  else if (k === 'm') setTool('measure');
   else if (k === 'f') fit();
   else if (k === ' ') { ui.space = true; e.preventDefault(); }
-  else if (k === 'escape') { ui.drag = null; ui.sel = null; render(); }
+  else if (k === 'escape') { ui.drag = null; ui.sel = null; ui.selComp = null; ui.measure = null; render(); }
   else if ((k === 'delete' || k === 'backspace') && ui.sel !== null) { const i = ui.sel; ui.sel = null; mutate(() => S.walls.splice(i, 1)); }
   else if (ui.tool === 'split' && /^[1-6]$/.test(k)) { ui.splitN = +k; syncSplitBar(); }
   if (e.key === 'Shift' && !ui.shift) { ui.shift = true; if (ui.mouse && ui.tool === 'split') { computeSplit(ui.mouse); drawSVG(); } }
@@ -1233,7 +1349,7 @@ window.addEventListener('keyup', e => {
 
 // In-page replacement for confirm()/prompt(), which some browsers and embedded views block.
 // Resolves to true / the entered text, or null when cancelled.
-function ask(title, { text = '', input = null, ok = 'OK' } = {}) {
+function ask(title, { text = '', input = null, ok = 'OK', allowEmpty = false } = {}) {
   const dlg = $('#askDlg');
   $('#askTitle').textContent = title;
   $('#askText').textContent = text; $('#askText').hidden = !text;
@@ -1245,7 +1361,7 @@ function ask(title, { text = '', input = null, ok = 'OK' } = {}) {
   dlg.showModal();
   if (input !== null) { $('#askInput').focus(); $('#askInput').select(); }
   return new Promise(resolve => dlg.addEventListener('close', () => {
-    resolve(dlg.returnValue !== 'ok' ? null : input === null ? true : $('#askInput').value.trim() || null);
+    resolve(dlg.returnValue !== 'ok' ? null : input === null ? true : $('#askInput').value.trim() || (allowEmpty ? '' : null));
   }, { once: true }));
 }
 $('#askOk').addEventListener('click', e => { e.preventDefault(); $('#askDlg').close('ok'); });
@@ -1268,6 +1384,9 @@ const TEMPLATES = {
   mixed:    { cols: [1, 1], rows: [[1, 1], [1, 1, 1, 1]] },
   desk:     { cols: [1, 2, 1], rows: [[1, 1], [1], [1, 1, 1]] },
   small:    { cols: [1, 1, 1, 1], rows: [[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1]] },
+  tools:    { cols: [3, 1], rows: [[1, 1, 1], [1, 1, 1, 1, 1]] },
+  bits:     { cols: [1, 1, 1, 1, 1, 1], rows: [[1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1]] },
+  kitchen:  { cols: [1, 3, 1], rows: [[1, 1, 1], [1], [1, 1]] },
 };
 $('#btnGrid').addEventListener('click', () => gridDlg.showModal());
 $('#gTpl').addEventListener('change', () => { $('#gGridRow').hidden = $('#gTpl').value !== 'grid'; });
@@ -1291,22 +1410,110 @@ $('#btnSave').addEventListener('click', () => download(fileBase() + '.json', JSO
 $('#btnOpen').addEventListener('click', () => $('#fileIn').click());
 $('#fileIn').addEventListener('change', async e => {
   const f = e.target.files[0]; if (!f) return;
-  try { const o = migrate(JSON.parse(await f.text())); mutate(() => { S = o; }); syncInputs(); fit(); render(); }
-  catch (err) { ask(T('Datei konnte nicht gelesen werden'), { text: err.message }); }
+  try {
+    const o = JSON.parse(await f.text());
+    const list = Array.isArray(o && o.drawers) ? o.drawers.map(migrate) : [migrate(o)];
+    if (!list.length) throw new Error(T('Keine Schublade in der Datei.'));
+    addDrawers(list);
+    if (list.length > 1) flash(T`${list.length} Schubladen geöffnet – umschalten unter „Schubladen“.`);
+  } catch (err) { ask(T('Datei konnte nicht gelesen werden'), { text: err.message }); }
   e.target.value = '';
 });
 const exportMenu = $('#exportMenu');
-$('#btnExport').addEventListener('click', e => { e.stopPropagation(); exportMenu.classList.toggle('open'); });
+$('#btnExport').addEventListener('click', e => { e.stopPropagation(); $('#drawerMenu').classList.remove('open'); exportMenu.classList.toggle('open'); });
 document.addEventListener('click', () => exportMenu.classList.remove('open'));
 for (const b of $$('[data-export]')) b.addEventListener('click', () => {
   exportMenu.classList.remove('open');
   const k = b.dataset.export;
   if (k === 'csv') download(fileBase() + '_stueckliste.csv', bomCsv(), 'text/csv');
+  if (k === 'labels') {
+    const csv = labelsCsv();
+    if (csv) download(fileBase() + T('_etiketten') + '.csv', csv, 'text/csv');
+    else flash(T('Noch keine Fächer – zeichne zuerst Wände in die Schublade.'));
+  }
   if (k === 'scad') download(fileBase() + '_druckjob.scad', jobScad(), 'text/plain');
   if (k === 'print') window.print();
   if (k === 'offline') saveOffline();
   if (k === 'link') shareLink();
 });
+
+// ---- several drawers -----------------------------------------------------------
+function openDrawer(i) {
+  persist();
+  shelf.cur = clamp(i, 0, shelf.list.length - 1);
+  S = shelf.list[shelf.cur];
+  hist.past = []; hist.future = [];
+  ui.sel = null; ui.selComp = null; ui.measure = null;
+  syncInputs(); persist(); fit(); render();
+}
+// opened files and links come in as new drawers, so nothing gets overwritten;
+// a single empty drawer nobody worked on yet is replaced instead
+function addDrawers(list) {
+  const blank = shelf.list.length === 1 && !S.walls.length && !hist.past.length;
+  const at = blank ? 0 : shelf.list.length;
+  shelf.list.splice(at, blank ? 1 : 0, ...list);
+  shelf.cur = at; S = shelf.list[at];
+  openDrawer(at);
+}
+function drawerName(base) {
+  const names = new Set(shelf.list.map(d => d.name));
+  let k = 2, n = base;
+  while (names.has(n)) n = `${base} ${k++}`;
+  return n;
+}
+function drawMenu() {
+  const n = shelf.list.length;
+  $('#drawerCount').textContent = n > 1 ? `${shelf.cur + 1}/${n}` : '';
+  $('#drawerList').innerHTML = shelf.list.map((d, i) => `<button data-open="${i}" class="${i === shelf.cur ? 'on' : ''}"><span>${esc(d.name)}</span><small>${d.drawer.w} × ${d.drawer.d}</small></button>`).join('');
+  $('[data-drawer="del"]').disabled = n < 2;
+}
+const drawerMenu = $('#drawerMenu');
+$('#btnDrawers').addEventListener('click', e => { e.stopPropagation(); exportMenu.classList.remove('open'); drawerMenu.classList.toggle('open'); });
+document.addEventListener('click', () => drawerMenu.classList.remove('open'));
+$('#drawerList').addEventListener('click', e => { const b = e.target.closest('[data-open]'); if (b) openDrawer(+b.dataset.open); });
+for (const b of $$('[data-drawer]')) b.addEventListener('click', async () => {
+  drawerMenu.classList.remove('open');
+  const k = b.dataset.drawer;
+  if (k === 'add' || k === 'dup') {
+    const d = k === 'dup' ? { ...JSON.parse(snapshot()), name: drawerName(S.name + T(' (Kopie)')) }
+      : { ...defaultState(), ...JSON.parse(JSON.stringify({ drawer: S.drawer, profile: S.profile, preset: S.preset, settings: S.settings })), name: drawerName(T('Schublade')) };
+    shelf.list.splice(shelf.cur + 1, 0, d);
+    openDrawer(shelf.cur + 1);
+  }
+  if (k === 'del' && shelf.list.length > 1 && await ask(T`„${S.name}“ löschen?`, { text: T('Die Schublade wird aus der Liste entfernt. Das lässt sich nicht rückgängig machen.'), ok: T('Löschen') })) {
+    shelf.list.splice(shelf.cur, 1);
+    shelf.cur = Math.min(shelf.cur, shelf.list.length - 1); S = shelf.list[shelf.cur];
+    openDrawer(shelf.cur);
+  }
+  if (k === 'csv') download(T('alle_schubladen') + T('_stueckliste') + '.csv', allDrawersCsv(), 'text/csv');
+  if (k === 'save') download(T('alle_schubladen') + '.json', JSON.stringify({ version: 3, drawers: shelf.list }, null, 2), 'application/json');
+});
+
+// all parts of all drawers added up: same part in the same size is one row
+function allDrawersCsv() {
+  const keepS = S, keepA = A, rowsBy = new Map();
+  let parts = 0, grams = 0;
+  const add = (cat, name, len, h, note, qty, g, drawer) => {
+    const k = [cat, name, len, h, note].join('|');
+    if (!rowsBy.has(k)) rowsBy.set(k, { cat, name, len, h, note, qty: 0, g, drawers: new Set() });
+    const r = rowsBy.get(k); r.qty += qty; r.drawers.add(drawer);
+  };
+  try {
+    for (const d of shelf.list) {
+      S = d;   // part names depend on the drawer's own settings
+      const a = analyze(d), b = a.bom;
+      for (const c of b.connectors) add(T('Verbinder'), typeName(c.type), '', fmt(d.profile.height), c.type, c.qty, c.g, d.name);
+      for (const w of b.walls) add(T('Wand'), `${fmt(w.len)} mm`, fmt(w.len), fmt(w.h), T`Dicke ${fmt(a.g.t)}`, w.qty, w.g, d.name);
+      for (const r of b.rails) add(T('Schiene'), T('Schiene') + ' ' + fmt(r.len), fmt(r.len), fmt(r.width), T`Zahnversatz ${fmt(r.offset, 2)}` + (r.tongue ? ', ' + T('Zapfen') : '') + (r.socket ? ', ' + T('Buchse') : ''), r.qty, r.g, d.name);
+      for (const x of b.extras) add(T('Zubehör'), clipName(x), '40', '', '', x.qty, x.g, d.name);
+      parts += b.parts; grams += b.grams;
+    }
+  } finally { S = keepS; A = keepA; }
+  const rows = [['Kategorie', 'Teil', 'Länge (mm)', 'Höhe/Breite (mm)', 'Anzahl', 'ca. Gramm je Stück', 'Hinweis', 'Schubladen'].map(T)];
+  for (const r of rowsBy.values()) rows.push([r.cat, r.name, r.len, r.h, r.qty, fmt(r.g), r.note, [...r.drawers].join(', ')]);
+  rows.push([], [T('Summe'), '', '', '', parts, fmt(grams, 0), T`${shelf.list.length} Schubladen`, '']);
+  return csvText(rows);
+}
 
 // ---- share link: the project, deflated into the URL hash -------------------
 const PAGES_URL = 'https://barry2040.github.io/the-drawer-dividers/';
@@ -1314,8 +1521,8 @@ const b64url = bytes => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').
 const unb64url = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
 async function pipe(bytes, stream) { return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer()); }
 async function shareLink() {
-  const { name, drawer, profile, settings, walls } = S;
-  const data = await pipe(new TextEncoder().encode(JSON.stringify({ name, drawer, profile, settings, walls })), new CompressionStream('deflate-raw'));
+  const { name, drawer, profile, settings, walls, names } = S;
+  const data = await pipe(new TextEncoder().encode(JSON.stringify({ name, drawer, profile, settings, walls, names })), new CompressionStream('deflate-raw'));
   const base = location.protocol.startsWith('http') ? location.origin + location.pathname : PAGES_URL;
   const url = base + '#p=' + b64url(data);
   try { await navigator.clipboard.writeText(url); flash(T('Link kopiert – er enthält das ganze Layout.')); }
@@ -1327,8 +1534,8 @@ async function loadFromHash() {
   history.replaceState(null, '', location.pathname + location.search);
   try {
     const o = migrate(JSON.parse(new TextDecoder().decode(await pipe(unb64url(m[1]), new DecompressionStream('deflate-raw')))));
-    mutate(() => { S = o; }); syncInputs(); fit(); render();
-    flash(T('Geteiltes Layout geladen – Rückgängig holt dein vorheriges zurück.'));
+    addDrawers([o]);
+    flash(shelf.list.length > 1 ? T('Geteiltes Layout als neue Schublade geöffnet – deine anderen findest du unter „Schubladen“.') : T('Geteiltes Layout geladen.'));
   } catch { ask(T('Link konnte nicht gelesen werden'), { text: T('Der Link ist unvollständig oder beschädigt.') }); }
 }
 
@@ -1360,19 +1567,27 @@ function bomCsv() {
   for (const c of b.connectors) rows.push([T('Verbinder'), typeName(c.type), '', fmt(S.profile.height), c.qty, fmt(c.g), c.type]);
   for (const w of b.walls) rows.push([T('Wand'), T`Wand ${w.id}` + ' ' + fmt(w.len), fmt(w.len), fmt(w.h), w.qty, fmt(w.g), T`Dicke ${fmt(A.g.t)}`]);
   for (const r of b.rails) rows.push([T('Schiene'), T('Schiene') + ' ' + fmt(r.len), fmt(r.len), fmt(r.width), r.qty, fmt(r.g), T`Zahnversatz ${fmt(r.offset, 2)}` + (r.tongue ? ', ' + T('Zapfen') : '') + (r.socket ? ', ' + T('Buchse') : '')]);
-  for (const x of b.extras) rows.push([T('Zubehör'), T('Beschriftungsclip'), '40', '', x.qty, fmt(x.g), T('oben auf eine Wand stecken')]);
+  for (const x of b.extras) rows.push([T('Zubehör'), clipName(x), '40', '', x.qty, fmt(x.g), T('oben auf eine Wand stecken')]);
   rows.push([], [T('Summe'), '', '', '', b.parts, fmt(b.grams, 0), T`Schublade ${S.drawer.w}×${S.drawer.d}×${S.drawer.h} mm`]);
-  return '﻿' + rows.map(r => r.map(v => /[;"\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(';')).join('\r\n');
+  return csvText(rows);
+}
+const csvText = rows => '﻿' + rows.map(r => r.map(v => /[;"\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(';')).join('\r\n');
+
+// Compartment labels for Open Label Studio's batch print: "name;size" per line, no header.
+// Only the named compartments once some have a name, otherwise all, numbered.
+function labelsCsv() {
+  const list = A.comps.list, named = list.filter(R => R.name);
+  const size = R => R.rect ? `${fmt(R.netW, 0)} × ${fmt(R.netD, 0)} mm` : `${fmt(R.area / 100, 0)} cm²`;
+  const rows = (named.length ? named.map(R => [R.name, size(R)]) : list.map((R, i) => [T`Fach ${i + 1}`, size(R)]));
+  return rows.map(r => r.map(v => String(v).replace(/;/g, ',')).join(';')).join('\r\n');
 }
 
 function jobScad() { return buildJob().scad; }
 
-// The print job: one .scad with the library embedded and one PART per bed-sized plate.
-function buildJob() {
-  const b = A.bom, g = A.g, p = S.profile, st = S.settings;
-  const bed = st.bed - 10, gap = 5;
-  const num = v => r2(v).toString();
-  const prof = `dd_profile(${Object.entries(p).map(([k, v]) => `${k} = ${num(v)}`).join(', ')})`;
+const num = v => r2(v).toString();
+// Every printable part: its SCAD call and its footprint on the bed (px, py incl. the gap), centred on the origin.
+function jobParts() {
+  const b = A.bom, g = A.g, p = S.profile, st = S.settings, gap = 5;
   const parts = [];   // {label, body, px, py, qty, w}
   for (const c of b.connectors)
     parts.push({ label: typeName(c.type), body: `dd_connector("${c.type}", P${st.slip ? ', slip = true' : ''}${c.type === 'corner_round' ? `, corner_r = ${num(g.cornerR)}` : ''});`, px: 2 * p.arm + 4, py: 2 * p.arm + 4, qty: c.qty, w: 2 * p.arm });
@@ -1391,18 +1606,58 @@ function buildJob() {
 
   for (const x of b.extras) {
     const sx = g.t + 0.15 + 2.4 + 12 * Math.cos(Math.PI / 4) + 1.2, sy = 8 + 2.4 + 12 * Math.sin(Math.PI / 4);
-    parts.push({ label: T('Beschriftungsclip'), body: `translate([0, ${num(8 - sy / 2)}, 0]) dd_label_clip(40, P);`, px: sx + 4, py: sy + 4, qty: x.qty, w: sx });
+    const lab = x.label ? `, label = ${JSON.stringify(x.label)}, text_size = ${num(clipTextSize(x.label))}` : '';
+    parts.push({ label: clipName(x), body: `translate([0, ${num(8 - sy / 2)}, 0]) dd_label_clip(40, P${lab});`,
+                 px: sx + 4, py: sy + 4, qty: x.qty, w: sx });
   }
-  // split big quantities into several bed-sized plates
+  return parts;
+}
+// clip text: 5 mm high, smaller so a long name still fits the 40 mm wide face
+const clipTextSize = s => r2(clamp(34 / (0.62 * Math.max(1, [...s].length)), 2, 5));
+
+// Packs the parts onto bed-sized plates in rows (shelves) of the tallest parts first.
+// mixed = false keeps one kind of part per plate, which saves sorting after printing.
+function packPlates(parts, bed, mixed) {
+  const items = parts.flatMap((pt, i) => Array(pt.qty).fill(i));
+  if (mixed) items.sort((a, b) => parts[b].py - parts[a].py || parts[b].px - parts[a].px || a - b);
   const plates = [];
-  parts.forEach((pt, i) => {
-    const cols = Math.max(1, Math.floor(bed / pt.px)), rows = Math.max(1, Math.floor(bed / pt.py)), per = cols * rows;
-    const n = Math.ceil(pt.qty / per);
-    for (let k = 0; k < n; k++) {
-      const q = Math.min(per, pt.qty - k * per);
-      plates.push({ part: i, qty: q, label: `${q}x ${pt.label}${n > 1 ? T` (Platte ${k + 1} von ${n})` : ''}` });
+  let open = [];
+  for (const i of items) {
+    const pt = parts[i], w = Math.min(pt.px, bed), h = Math.min(pt.py, bed);
+    if (!mixed && open.length && open[0].part !== i) open = [];
+    let done = false;
+    for (const pl of open) {
+      const sh = pl.shelves.find(s => h <= s.h + EPS && s.x + w <= bed + EPS);
+      if (sh) { pl.items.push({ i, x: sh.x + w / 2, y: sh.y + sh.h / 2 }); sh.x += w; done = true; break; }
+      if (pl.h + h <= bed + EPS) { pl.shelves.push({ y: pl.h, h, x: w }); pl.items.push({ i, x: w / 2, y: pl.h + h / 2 }); pl.h += h; done = true; break; }
     }
+    if (done) continue;
+    const pl = { part: i, shelves: [{ y: 0, h, x: w }], h, items: [{ i, x: w / 2, y: h / 2 }] };
+    plates.push(pl); open.push(pl);
+  }
+  for (const pl of plates) {
+    // centre the plate's contents on the bed
+    const W = Math.max(...pl.shelves.map(s => s.x));
+    for (const it of pl.items) { it.x -= W / 2; it.y -= pl.h / 2; }
+    const count = new Map();
+    for (const it of pl.items) count.set(it.i, (count.get(it.i) || 0) + 1);
+    pl.label = [...count].map(([i, q]) => `${q}x ${parts[i].label}`).join(', ');
+  }
+  if (!mixed) parts.forEach((pt, i) => {
+    const own = plates.filter(pl => pl.part === i);
+    if (own.length > 1) own.forEach((pl, k) => { pl.label += T` (Platte ${k + 1} von ${own.length})`; });
   });
+  return plates;
+}
+const bedSize = () => S.settings.bed - 10;
+const platesFor = () => packPlates(jobParts(), bedSize(), S.settings.pack !== 'single');
+
+// The print job: one .scad with the library embedded and one PART per bed-sized plate.
+function buildJob() {
+  const b = A.bom, p = S.profile;
+  const bed = bedSize();
+  const prof = `dd_profile(${Object.entries(p).map(([k, v]) => `${k} = ${num(v)}`).join(', ')})`;
+  const parts = jobParts(), plates = packPlates(parts, bed, S.settings.pack !== 'single');
   const tolIdx = plates.length + 1;
 
   // overview: one of each part, in rows
@@ -1426,7 +1681,7 @@ function buildJob() {
   L.push('');
   L.push('/* [Export] */');
   L.push(T('// Welche Druckplatte? (0 = Übersicht aller Teile)'));
-  L.push(`PART = 0; // [0:${T('Übersicht')}, ${plates.map((pl, i) => `${i + 1}:${pl.label.replace(/[,\]]/g, ' ')}`).join(', ')}, ${tolIdx}:${T('Toleranztest')}]`);
+  L.push(`PART = 0; // [0:${T('Übersicht')}, ${plates.map((pl, i) => `${i + 1}:${pl.label.replace(/[,:\]\["“”„]/g, ' ')}`).join(', ')}, ${tolIdx}:${T('Toleranztest')}]`);
   L.push('');
   L.push('/* [Hidden] */');
   L.push('$fn = 48;');
@@ -1439,8 +1694,9 @@ function buildJob() {
   L.push(...overview);
   L.push('}');
   plates.forEach((pl, i) => {
-    const pt = parts[pl.part];
-    L.push(`if (PART == ${i + 1}) dd_grid(${pl.qty}, ${num(pt.px)}, ${num(pt.py)}, BED) part_${pl.part + 1}();`);
+    L.push(`if (PART == ${i + 1}) {`);
+    for (const it of pl.items) L.push(`  translate([${num(it.x)}, ${num(it.y)}, 0]) part_${it.i + 1}();`);
+    L.push('}');
   });
   L.push(`if (PART == ${tolIdx}) dd_tolerance_test(P, [${[-0.1, -0.05, 0, 0.05, 0.1].map(d => num(Math.max(0, p.tol + d))).join(', ')}]);`);
   L.push('');

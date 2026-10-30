@@ -29,19 +29,22 @@
 | | |
 |---|---|
 | ✏️ **Draw compartments** | Drag walls with the mouse, split a compartment into 2–6 with one click, move, erase – snapping to the edge, the grid and other walls |
-| 🗂️ **Templates** | Ready-made layouts to start from: grid (N × M), cutlery, workshop, mixed, desk, small parts |
+| 🗂️ **Templates** | Ready-made layouts to start from: grid (N × M), cutlery, workshop, mixed, desk, small parts, tools, bits & screws, kitchen |
 | 🧮 **Parts list** | Every part with size, quantity and filament – connectors by type, walls by length |
+| 💶 **Cost & print time** | Filament in grams and metres, material cost and a rough print time – set price and print rate under *Advanced* |
 | 🔤 **Wall letters** | Every wall length gets a letter (A = longest). Letter and length are engraved into the wall end, which disappears inside the connector |
 | 🛡️ **Checks** | Compartments too narrow, overlapping connectors, dividers too tall, parts too long for the bed – all marked red and explained |
 | 🧱 **Four edge modes** | Frame, end caps, grid rails or clamp directly – plus optional slip-on connectors |
 | ⭕ **Round corners** | If the drawer has round inside corners, the frame corners are rounded to match |
-| 🏷️ **Label clips** | One clip per compartment to push onto the wall – write on it or stick a label on |
+| 🏷️ **Compartment names & clips** | Name compartments (click or double-click). The name shows in the plan and is engraved into the label clip – or exported as a label list for [Open Label Studio](https://github.com/Barry2040/open-label-studio) |
+| 📏 **Measure** | Measure distances in the drawing, snaps to walls and the grid |
 | 🐝 **Wall patterns** | Honeycomb, circles or solid – saves filament and looks good |
 | 🧊 **3D preview** | The whole assembly in 3D, patterns included |
-| 🖨️ **STLs in the browser** | OpenSCAD runs right in the page and renders every print plate to fit your bed |
+| 🖨️ **STLs in the browser** | OpenSCAD runs right in the page and renders every print plate to fit your bed. Parts are packed tightly and mixed (fewer plates) – or one kind per plate |
 | 📦 **3MF & ZIP** | All plates in one 3MF file (Bambu Studio, OrcaSlicer, PrusaSlicer) or a ZIP with STLs, parts list and project |
 | 📋 **Assembly plan** | To print or save as PDF: drawing with wall letters, parts list and assembly steps |
 | 🔗 **Share link** | The whole layout is in the link – to send around or for MakerWorld |
+| 🗄️ **Several drawers** | As many drawers as you like in the browser, switch next to the name at the top – with a combined parts list |
 | 💾 **Profiles** | Save tolerance, bed size and so on for your printer and load them for the next drawer |
 | 🌐 **Languages** | German and English, switch at the top right |
 | 🐳 **Docker** | Your own server for the home network (NAS, Raspberry Pi) – works without any internet |
@@ -92,8 +95,9 @@ V3 follows the MakerWorld projects [V1 – The Drawer Dividers](https://makerwor
    | 🗂️ Template | – | a ready-made layout to start from |
    | ➗ Split | `S` | pick a number (`2`–`6` or *free*) and a direction (`Shift` toggles), click into a compartment |
    | ✏️ Draw | `W` | drag a wall with the mouse |
-   | 👆 Select | `V` | click a wall and move it, `Del` deletes it |
-   | 🧽 Erase | `E` | removes the wall piece between two connectors |
+   | 👆 Select | `V` | click a wall and move it, `Del` deletes it. Click a compartment to name it |
+   | 🧽 Erase | `E` | removes the wall piece between two connectors – that is also how you merge two compartments |
+   | 📏 Measure | `M` | drag a distance, `Shift` measures without snapping |
    | ↩️ Undo | `Ctrl+Z` / `Ctrl+Y` | |
    | 🧊 3D | – | preview of the assembly |
 
