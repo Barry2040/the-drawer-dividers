@@ -1,0 +1,8 @@
+# docker compose up -d   ->  http://localhost:8080
+services:
+  drawer-divider:
+    image: ghcr.io/barry2040/the-drawer-dividers:latest
+    # build: .            # instead of the image above, to build it yourself
+    ports:
+      - "8080:8080"
+    restart: unless-stopped

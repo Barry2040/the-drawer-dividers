@@ -48,6 +48,18 @@ Oder **offline**: im Online-Designer *Export → Offline-Version herunterladen* 
 
 Erlaubt der Browser bei einer lokalen Datei keinen Hintergrund-Prozess (Worker), rechnet *STLs erzeugen* automatisch direkt in der Seite. Das funktioniert genauso, die Seite reagiert währenddessen nur langsamer.
 
+### Mit Docker (eigener Server, NAS, Raspberry Pi)
+
+Das Image enthält den Designer samt three.js und OpenSCAD – 3D-Vorschau und *STLs erzeugen* laufen also auch ganz ohne Internet. Es gibt es für x86 und ARM (Raspberry Pi, die meisten NAS).
+
+```bash
+docker run -d --name drawer-divider -p 8080:8080 --restart unless-stopped ghcr.io/barry2040/the-drawer-dividers:latest
+```
+
+Danach im Browser `http://<server>:8080` öffnen. Mit Docker Compose reicht die [`docker-compose.yml`](docker-compose.yml) aus diesem Ordner: `docker compose up -d`. Selbst bauen geht mit `docker build -t drawer-divider .` (das [`Dockerfile`](Dockerfile) lädt dabei three.js und OpenSCAD einmal herunter). Ein neues Image wird bei jeder Änderung am Designer automatisch veröffentlicht; aktualisieren mit `docker compose pull && docker compose up -d`.
+
+Projekte und Profile liegen wie online im Browser, nicht auf dem Server. Geteilte Links zeigen auf deinen Server.
+
 ### Schritt für Schritt
 
 1. **Schublade ausmessen** – Innenbreite, -tiefe und -höhe eintragen. Die Höhe der Trenner stellt sich automatisch ein (Schubladenhöhe minus 5 mm Luft). Eine eigene Höhe tippst du einfach ins Feld *Höhe*.
@@ -176,6 +188,8 @@ tools/
   i18n_keys.py              findet Designer-Texte ohne englische Übersetzung
 .github/workflows/pages.yml veröffentlicht Drawer-Divider-Designer.html auf GitHub Pages
 .github/workflows/check.yml Prüfung bei jedem Push
+.github/workflows/docker.yml Docker-Image auf ghcr.io
+Dockerfile, docker-compose.yml  Docker-Version
 ```
 
 ## Was gegenüber V2 verbessert ist

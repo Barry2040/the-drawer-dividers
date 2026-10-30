@@ -1936,7 +1936,8 @@ async function loadFromHash() {
 
 // The published page is the self-contained build; offer it as a file to keep.
 const offlineBtn = $('[data-export="offline"]');
-offlineBtn.hidden = !(document.querySelector('meta[name="dd-standalone"]') && location.protocol.startsWith('http'));
+// (not in the Docker image: its page loads three.js and OpenSCAD from the server, a saved copy would not)
+offlineBtn.hidden = !(document.querySelector('meta[name="dd-standalone"]') && location.protocol.startsWith('http')) || !!document.querySelector('meta[name="dd-local-libs"]');
 async function saveOffline() {
   try {
     const html = await fetch(location.href, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(r.status); return r.text(); });
@@ -2185,7 +2186,8 @@ addEventListener('hashchange', loadFromHash);
 // the job file comes from buildJob() in app.js, so the parts are exactly the SCAD library's.
 'use strict';
 
-const OPENSCAD_URL = 'https://cdn.jsdelivr.net/npm/openscad-wasm-prebuilt@1.2.0/dist/openscad.js';
+// absolute, because the worker runs from a blob: URL (the Docker image swaps in a local path)
+const OPENSCAD_URL = new URL('https://cdn.jsdelivr.net/npm/openscad-wasm-prebuilt@1.2.0/dist/openscad.js', location.href).href;
 
 // Runs inside the worker (or on the main thread if workers are unavailable).
 // Messages in:  {type:'run', scad, plates:[{num,label}]}

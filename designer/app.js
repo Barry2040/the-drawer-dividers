@@ -1318,7 +1318,8 @@ async function loadFromHash() {
 
 // The published page is the self-contained build; offer it as a file to keep.
 const offlineBtn = $('[data-export="offline"]');
-offlineBtn.hidden = !(document.querySelector('meta[name="dd-standalone"]') && location.protocol.startsWith('http'));
+// (not in the Docker image: its page loads three.js and OpenSCAD from the server, a saved copy would not)
+offlineBtn.hidden = !(document.querySelector('meta[name="dd-standalone"]') && location.protocol.startsWith('http')) || !!document.querySelector('meta[name="dd-local-libs"]');
 async function saveOffline() {
   try {
     const html = await fetch(location.href, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(r.status); return r.text(); });

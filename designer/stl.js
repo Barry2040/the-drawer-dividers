@@ -3,7 +3,8 @@
 // the job file comes from buildJob() in app.js, so the parts are exactly the SCAD library's.
 'use strict';
 
-const OPENSCAD_URL = 'https://cdn.jsdelivr.net/npm/openscad-wasm-prebuilt@1.2.0/dist/openscad.js';
+// absolute, because the worker runs from a blob: URL (the Docker image swaps in a local path)
+const OPENSCAD_URL = new URL('https://cdn.jsdelivr.net/npm/openscad-wasm-prebuilt@1.2.0/dist/openscad.js', location.href).href;
 
 // Runs inside the worker (or on the main thread if workers are unavailable).
 // Messages in:  {type:'run', scad, plates:[{num,label}]}
