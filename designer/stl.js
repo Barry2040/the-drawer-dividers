@@ -48,20 +48,37 @@ self.onmessage = async (e) => {
 };
 `;
 
+// main-thread engine: same code, the page pauses while a plate renders
+function startInline(onMessage) {
+  let stopped = false;
+  const self = { postMessage: d => { if (!stopped) setTimeout(() => onMessage(d)); } };
+  new Function('self', ENGINE_SRC)(self);
+  return { post: d => self.onmessage({ data: d }), stop: () => { stopped = true; } };
+}
+
+// Prefers a worker; some browsers refuse workers for pages opened as a local file,
+// so a worker that fails before its first plate hands over to the main thread.
 function startEngine(onMessage) {
+  let w, active, lastRun = null, started = false;
+  const fallback = () => {
+    if (active.inline) return;
+    w.terminate();
+    active = { inline: true, ...startInline(onMessage) };
+    if (lastRun) active.post(lastRun);
+  };
   try {
     const url = URL.createObjectURL(new Blob([ENGINE_SRC], { type: 'text/javascript' }));
-    const w = new Worker(url, { type: 'module' });
-    w.onmessage = e => onMessage(e.data);
-    w.onerror = e => { e.preventDefault(); onMessage({ type: 'fatal', text: 'Worker-Fehler: ' + (e.message || 'unbekannt') }); };
-    return { post: d => w.postMessage(d), stop: () => w.terminate() };
+    w = new Worker(url, { type: 'module' });
+    active = { post: d => w.postMessage(d), stop: () => w.terminate() };
+    w.onmessage = e => {
+      if (e.data.type === 'start') started = true;
+      if (e.data.type === 'fatal' && !started) fallback(); else onMessage(e.data);
+    };
+    w.onerror = e => { e.preventDefault(); if (!started) fallback(); else onMessage({ type: 'fatal', text: 'Worker-Fehler: ' + (e.message || 'unbekannt') }); };
   } catch (err) {
-    // main-thread fallback: same engine, the UI pauses while a plate renders
-    let stopped = false;
-    const self = { postMessage: d => { if (!stopped) setTimeout(() => onMessage(d)); } };
-    new Function('self', ENGINE_SRC)(self);
-    return { post: d => self.onmessage({ data: d }), stop: () => { stopped = true; } };
+    active = { inline: true, ...startInline(onMessage) };
   }
+  return { post: d => { if (d.type === 'run') lastRun = d; active.post(d); }, stop: () => active.stop() };
 }
 
 // ---- minimal ZIP writer (stored, no compression) ---------------------------

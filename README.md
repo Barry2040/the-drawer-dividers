@@ -12,7 +12,7 @@ V3 ist der Nachfolger der beiden MakerWorld-Projekte [V1 – The Drawer Dividers
 
 | Du willst … | Dann … |
 |---|---|
-| eine Schublade planen und alle STLs bekommen | **HTML-Designer**: [online öffnen](https://barry2040.github.io/the-drawer-dividers/) oder `designer/index.html` lokal (siehe unten) |
+| eine Schublade planen und alle STLs bekommen | **HTML-Designer**: [online öffnen](https://barry2040.github.io/the-drawer-dividers/) oder `Drawer-Divider-Designer.html` herunterladen und öffnen (siehe unten) |
 | ohne Zeichnen, nur mit Zahlen arbeiten (z.B. auf MakerWorld) | **SCAD-Designer**: `scad/drawer_designer.scad` in OpenSCAD |
 | einzelne Teile nachdrucken | `scad/connector.scad`, `wall.scad`, `rail.scad` in OpenSCAD |
 | erst mal prüfen, ob die Wände in die Schlitze passen | `scad/tolerance_test.scad` drucken |
@@ -39,15 +39,9 @@ V3 ist der Nachfolger der beiden MakerWorld-Projekte [V1 – The Drawer Dividers
 
 Am einfachsten **online**: [barry2040.github.io/the-drawer-dividers](https://barry2040.github.io/the-drawer-dividers/). Die Seite wird bei jeder Änderung an `designer/` automatisch neu veröffentlicht.
 
-Oder **lokal**: `designer/index.html` per Doppelklick im Browser öffnen (Chrome, Edge oder Firefox). Eine Installation ist nicht nötig.
+Oder **lokal**: [`Drawer-Divider-Designer.html`](Drawer-Divider-Designer.html) herunterladen (auf GitHub: Datei öffnen → *Download raw file*) und per Doppelklick im Browser öffnen (Chrome, Edge oder Firefox). Die Datei enthält alles, eine Installation ist nicht nötig. Internet brauchst du nur für die 3D-Vorschau und *STLs erzeugen*.
 
-Falls *STLs erzeugen* per Doppelklick nicht startet, weil manche Browser bei lokalen Dateien keine Worker erlauben, öffne den Designer über einen kleinen lokalen Server:
-
-```bash
-python -m http.server 8765 --directory designer
-```
-
-Danach `http://localhost:8765` im Browser öffnen.
+Erlaubt der Browser bei einer lokalen Datei keinen Hintergrund-Prozess (Worker), rechnet *STLs erzeugen* automatisch direkt in der Seite. Das funktioniert genauso, die Seite reagiert währenddessen nur langsamer.
 
 ### Schritt für Schritt
 
@@ -146,8 +140,9 @@ translate([0, 60, 0]) dd_rail(200, 40, P);
 ## Dateien
 
 ```
-designer/                   HTML-Designer
-  index.html                  Oberfläche
+Drawer-Divider-Designer.html  der Designer als eine einzige Datei (wird erzeugt) – zum Herunterladen
+designer/                   HTML-Designer, Quelle
+  Drawer-Divider-Designer.html  Oberfläche (Quelle, braucht die .js-Dateien daneben)
   app.js                      Planung, Stückliste, Prüfungen, 3D-Vorschau, Druckjob
   stl.js                      STL-Erzeugung mit OpenSCAD im Browser, ZIP-Download
   scad_lib.js                 eingebettete SCAD-Bibliothek (wird erzeugt)
@@ -179,7 +174,7 @@ tools/                      Build-Skript und deutsche Übersetzung
 
 ## Für Entwickler
 
-Nach Änderungen in `scad/` die MakerWorld-Einzeldateien und die eingebettete Bibliothek des HTML-Designers neu erzeugen:
+Nach Änderungen in `scad/` oder `designer/` die erzeugten Dateien neu bauen (MakerWorld-Einzeldateien, eingebettete Bibliothek, `Drawer-Divider-Designer.html`):
 
 ```bash
 python tools/build.py
