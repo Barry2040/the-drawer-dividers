@@ -156,7 +156,13 @@ function analyze(S) {
   }
 
   // classify
-  const lineLen = (o, x, y) => { const l = (o === 'h' ? H : V).find(l => near(l.c, o === 'h' ? y : x) && (o === 'h' ? x : y) >= l.a - EPS && (o === 'h' ? x : y) <= l.b + EPS); return l ? l.b - l.a : 0; };
+  // slip-on crossing: the first wall not forced to end runs through; none left = a normal cross / T
+  function pickThrough(n) {
+    n.through = n.cand.find(o => !n.blocked.has(o)) || null;
+    const four = n.dirs[0] + n.dirs[1] + n.dirs[2] + n.dirs[3] === 4;
+    n.type = n.through ? (four ? 'slip_cross' : 'slip_tee') : (four ? 'cross' : 'tee');
+  }
+  const lineLen =(o, x, y) => { const l = (o === 'h' ? H : V).find(l => near(l.c, o === 'h' ? y : x) && (o === 'h' ? x : y) >= l.a - EPS && (o === 'h' ? x : y) <= l.b + EPS); return l ? l.b - l.a : 0; };
   for (const n of nodes.values()) {
     const d = n.dirs, cnt = d[0] + d[1] + d[2] + d[3];
     const side = near(n.x, 0) ? 'L' : near(n.x, W) ? 'R' : near(n.y, 0) ? 'T' : near(n.y, D) ? 'B' : null;
@@ -171,9 +177,12 @@ function analyze(S) {
     else if (cnt === 2) n.type = (d[0] && d[2]) || (d[1] && d[3]) ? 'straight' : 'corner';
     else n.type = 'end';
     if (st.slip && (cnt === 4 || cnt === 3)) {
-      const hThru = d[0] && d[2], vThru = d[1] && d[3];
-      n.through = hThru && vThru ? (lineLen('h', n.x, n.y) >= lineLen('v', n.x, n.y) ? 'h' : 'v') : hThru ? 'h' : 'v';
-      n.type = cnt === 4 ? 'slip_cross' : 'slip_tee';
+      // walls that could run through here, the longer one first; a wall that has to end
+      // here (too long, see below) goes into n.blocked and the other one takes over
+      n.cand = [d[0] && d[2] && 'h', d[1] && d[3] && 'v'].filter(Boolean)
+        .sort((a, b) => lineLen(b, n.x, n.y) - lineLen(a, n.x, n.y));
+      n.blocked = new Set();
+      pickThrough(n);
     }
     if (n.type === 'straight') n.through = null;
     if (n.type === 'corner' && g.cornerR > 0 && (near(n.x, B) || near(n.x, W - B)) && (near(n.y, B) || near(n.y, D - B))) n.type = 'corner_round';
@@ -183,28 +192,34 @@ function analyze(S) {
   const pieces = [], joints = [];
   const offOf = n => n.kind === 'edge' ? n.off : g.inset;
   for (const l of lines) {
-    const at = (u) => l.o === 'h' ? nodes.get(u.toFixed(2) + ',' + l.c.toFixed(2)) : nodes.get(l.c.toFixed(2) + ',' + u.toFixed(2));
-    const stops = [...nodes.values()].filter(n => l.o === 'h' ? near(n.y, l.c) && n.x >= l.a - EPS && n.x <= l.b + EPS
-                                                              : near(n.x, l.c) && n.y >= l.a - EPS && n.y <= l.b + EPS)
-                                       .map(n => l.o === 'h' ? n.x : n.y).sort((a, b) => a - b);
-    l.stops = stops;
-    let cuts = stops.filter((u, i) => i === 0 || i === stops.length - 1 || at(u).through !== l.o);
-    // slip-on: a through wall that is too long ends at a crossing instead of getting a joiner
-    // squeezed between connectors; that crossing becomes a normal cross / T
-    if (st.slip) {
-      const extra = [];
+    l.at = (u) => l.o === 'h' ? nodes.get(u.toFixed(2) + ',' + l.c.toFixed(2)) : nodes.get(l.c.toFixed(2) + ',' + u.toFixed(2));
+    l.stops = [...nodes.values()].filter(n => l.o === 'h' ? near(n.y, l.c) && n.x >= l.a - EPS && n.x <= l.b + EPS
+                                                          : near(n.x, l.c) && n.y >= l.a - EPS && n.y <= l.b + EPS)
+                                   .map(n => l.o === 'h' ? n.x : n.y).sort((a, b) => a - b);
+  }
+  function lineCuts(l) { return l.stops.filter((u, i) => i === 0 || i === l.stops.length - 1 || l.at(u).through !== l.o); }
+  // slip-on: a through wall that is too long ends at a crossing instead of getting a joiner
+  // squeezed between connectors. The other wall may run through there instead, which can make
+  // that one too long in turn – repeat until nothing changes (blocks only grow, so this ends).
+  if (st.slip) for (let round = 0, changed = true; changed && round < 20; round++) {
+    changed = false;
+    for (const l of lines) {
+      const cuts = lineCuts(l);
       for (let i = 0; i + 1 < cuts.length; i++) {
-        const u1 = cuts[i + 1], o1 = offOf(at(u1));
-        let prev = cuts[i], prevOff = offOf(at(prev));
+        const u1 = cuts[i + 1], o1 = offOf(l.at(u1));
+        let prev = cuts[i], prevOff = offOf(l.at(prev));
         while (u1 - prev - prevOff - o1 > st.maxLen) {
-          const ok = stops.filter(u => u > prev + EPS && u < u1 - EPS && u - prev - prevOff - g.inset <= st.maxLen);
+          const ok = l.stops.filter(u => u > prev + EPS && u < u1 - EPS && u - prev - prevOff - g.inset <= st.maxLen);
           if (!ok.length) break;   // no crossing close enough: joiners take over below
-          prev = ok[ok.length - 1]; prevOff = g.inset; extra.push(prev);
+          prev = ok[ok.length - 1]; prevOff = g.inset;
+          const n = l.at(prev);
+          if (n.blocked && !n.blocked.has(l.o)) { n.blocked.add(l.o); pickThrough(n); changed = true; }
         }
       }
-      for (const u of extra) { const n = at(u); n.through = null; n.type = n.dirs[0] + n.dirs[1] + n.dirs[2] + n.dirs[3] === 4 ? 'cross' : 'tee'; }
-      if (extra.length) cuts = [...cuts, ...extra].sort((a, b) => a - b);
     }
+  }
+  for (const l of lines) {
+    const at = l.at, stops = l.stops, cuts = lineCuts(l);
     for (let i = 0; i + 1 < cuts.length; i++) {
       const u0 = cuts[i], u1 = cuts[i + 1], o0 = offOf(at(u0)), o1 = offOf(at(u1));
       const total = u1 - u0 - o0 - o1;
@@ -552,7 +567,8 @@ function stripWalls(St, cols, rows) {
   });
   return walls;
 }
-const nearestOf = (arr, v) => arr.length ? arr.reduce((b, c) => Math.abs(c - v) < Math.abs(b - v) ? c : b) : v;
+// a tie (value exactly between two, up to rounding noise) goes to the lower one, like dd_nearest()
+const nearestOf = (arr, v) => arr.length ? arr.reduce((b, c) => { const dc = Math.abs(c - v), db = Math.abs(b - v); return dc < db - 1e-6 || (Math.abs(dc - db) <= 1e-6 && c < b) ? c : b; }) : v;
 function withSample(St) {
   St.walls = gridWalls(St, 3, 2);
   // one extra split to show a T-junction

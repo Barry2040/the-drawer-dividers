@@ -529,7 +529,9 @@ function dd_uniq_sorted(l) = [for (k = [0 : 1 : len(l) - 1]) if (k == 0 || l[k] 
 function dd_unique(l, i = 0, acc = []) =
     i >= len(l) ? acc : dd_unique(l, i + 1, len([for (y = acc) if (y == l[i]) 1]) ? acc : concat(acc, [l[i]]));
 function dd_count(l, x) = len([for (y = l) if (y == x) 1]);
-function dd_nearest(l, v) = len(l) == 0 ? v : let(d = [for (x = l) abs(x - v)]) l[search(min(d), d)[0]];
+// a tie (v exactly between two, up to rounding noise) goes to the lower value, like nearestOf() in the designer
+function dd_nearest(l, v) = len(l) == 0 ? v :
+    let(d = [for (x = l) abs(x - v)], m = min(d)) min([for (i = [0 : len(l) - 1]) if (d[i] <= m + 1e-6) l[i]]);
 function dd_fmt(v, d = 1) = str(round(v * pow(10, d)) / pow(10, d));
 
 // ---- options ---------------------------------------------------------------
@@ -644,9 +646,10 @@ function dd_layout(p, o) =
         us = concat([base], [for (x = dd_lay_split(base, U - base, eoff, cols, t)) rail ? dd_nearest(su, x) : x], [U - base]),
         // compartment borders that almost line up with the neighbouring strip snap onto it,
         // otherwise the arms of the two connectors on the strip wall would collide
-        vsi = dd_lay_align([for (i = [0 : ncol - 1])
+        // two borders snapped onto the same place (or rail slot) are one wall, not two stacked ones
+        vsi = [for (r = dd_lay_align([for (i = [0 : ncol - 1])
                   [for (y = dd_lay_split(base, V - base, eoff, rows[i], t)) rail ? dd_nearest(sv, y) : y]],
-                  dd_min_conn_gap(p)),
+                  dd_min_conn_gap(p))) dd_uniq_sorted(dd_sort(r))],
 
         // nodes on the through-running strip walls (and the frame sides)
         vjs = frame ? [for (j = [0 : ncol]) j] : [for (j = [1 : 1 : ncol - 1]) j],

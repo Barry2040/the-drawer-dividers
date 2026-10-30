@@ -13,6 +13,7 @@ Run from anywhere:  python tools/check.py
 """
 import json
 import os
+import random
 import re
 import subprocess
 import sys
@@ -33,6 +34,20 @@ CASES = [
     ("rail", False, [1, 1, 1], [[1, 1], [1], [1, 1, 1]], 400, 300),
     ("frame", False, [1, 1], [[1], [1]], 600, 200),   # long walls: joiners
 ]
+
+
+def random_cases(n, seed=7):
+    """Random layouts without slip-on connectors (with them the designer may pick other
+    through walls than the strip-based SCAD layout – both valid, so not compared)."""
+    r = random.Random(seed)
+    out = []
+    for _ in range(n):
+        cols = [r.choice([1, 1, 2, 3]) for _ in range(r.randint(1, 4))]
+        # a single number means "n equal compartments" in SCAD but a weight in the designer
+        rows = [[1] if k == 1 else [r.choice([1, 1, 2]) for _ in range(k)] for k in (r.randint(1, 4) for _ in cols)]
+        out.append((r.choice(["frame", "endcap", "none", "rail"]), False, cols, rows,
+                    200 + 10 * r.randint(0, 40), 150 + 10 * r.randint(0, 30)))
+    return out
 
 
 def openscad(src, out, defines=()):
@@ -123,8 +138,12 @@ def check_designer():
         if errors:
             print("FAIL designer page errors:", errors)
             ok = False
-        for case in CASES:
+        skipped = 0
+        for case in CASES + random_cases(30):
             js = designer_parts(page, case)
+            if case not in CASES and js["conflicts"]:
+                skipped += 1   # too tight for this drawer: the designer refuses it, nothing to compare
+                continue
             sw, sc = scad_parts(case), scad_conns(case)
             jw = {float(k): v for k, v in js["walls"].items()}
             same = jw == sw and js["conns"] == sc and js["conflicts"] == 0
@@ -134,6 +153,7 @@ def check_designer():
                 print("     designer walls", json.dumps(jw), "conns", json.dumps(js["conns"]), "conflicts", js["conflicts"])
                 print("     scad     walls", json.dumps(sw), "conns", json.dumps(sc))
         browser.close()
+        print(f"random layouts skipped as too tight: {skipped}")
     return ok
 
 
