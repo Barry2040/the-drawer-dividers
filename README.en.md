@@ -63,32 +63,21 @@
 
 ## 🧩 The system
 
-<table>
-<tr><td width="50%" valign="top">
-
-**🧱 Walls**<br>
-Flat plates at the height of your dividers, optionally with a honeycomb or circle pattern. Each wall sits 14 mm deep in its connector.
-
-**🔶 Connectors**<br>
-Hold the walls together:
-*cross* (4 walls) · *T piece* (3) · *corner* (2 at a right angle) · *straight* (joins a wall that is too long) · *end cap* (wall end at the drawer wall)
-
-**📌 Slip-on connectors** *(optional)*<br>
-Long walls run through the crossings and the connectors are pushed on from above. Fewer, longer walls – the walls are 2 mm lower so the cap sits flush.
-
-</td><td width="50%" valign="top">
+| Part | What it does |
+|---|---|
+| 🧱 **Walls** | Flat plates at the height of your dividers, optionally with a honeycomb or circle pattern. Each wall sits 14 mm deep in its connector |
+| 🔶 **Connectors** | Hold the walls together: *cross* (4 walls) · *T piece* (3) · *corner* (2 at a right angle) · *straight* (joins a wall that is too long) · *end cap* (wall end at the drawer wall) |
+| 📌 **Slip-on connectors** | *Optional.* Long walls run through the crossings and the connectors are pushed on from above. Fewer, longer walls – the walls are 2 mm lower so the cap sits flush |
+| 🏷️ **Label clips** | *Optional.* Pushed onto the top of a wall |
 
 **At the drawer edge – four options:**
 
-| | |
+| Edge mode | How it works |
 |---|---|
 | **Frame** | Outer walls with corners and T pieces – stands on its own and can be lifted out |
 | **End caps** | No outer wall, the walls end with an end cap at the drawer wall |
 | **Grid rails** | Toothed rails on the sides, the walls snap in between the teeth |
 | **Clamp directly** | The walls run up to the drawer wall, no part at the edge |
-
-</td></tr>
-</table>
 
 V3 follows the MakerWorld projects [V1 – The Drawer Dividers](https://makerworld.com/en/models/496828-the-drawer-dividers) and [V2 – Parametric System](https://makerworld.com/en/models/3106623-the-drawer-dividers-v2-parametric-system). The defaults are those of V2: 2 mm walls, 0.2 mm tolerance, open connectors.
 

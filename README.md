@@ -63,32 +63,21 @@
 
 ## 🧩 Das System
 
-<table>
-<tr><td width="50%" valign="top">
-
-**🧱 Wände**<br>
-Flache Platten in der Höhe deiner Trenner, optional mit Waben- oder Kreismuster. Jede Wand steckt 14 mm tief im Verbinder.
-
-**🔶 Verbinder**<br>
-Halten die Wände zusammen:
-*Kreuz* (4 Wände) · *T-Stück* (3) · *Ecke* (2 im Winkel) · *Gerade* (verlängert eine zu lange Wand) · *Endstück* (Wandende an der Schubladenwand)
-
-**📌 Aufsteck-Verbinder** *(optional)*<br>
-Lange Wände laufen über die Kreuzungen durch, die Verbinder werden von oben aufgesteckt. Weniger, längere Wände – dafür sind die Wände 2 mm niedriger, damit der Deckel bündig sitzt.
-
-</td><td width="50%" valign="top">
+| Teil | Was es macht |
+|---|---|
+| 🧱 **Wände** | Flache Platten in der Höhe deiner Trenner, optional mit Waben- oder Kreismuster. Jede Wand steckt 14 mm tief im Verbinder |
+| 🔶 **Verbinder** | Halten die Wände zusammen: *Kreuz* (4 Wände) · *T-Stück* (3) · *Ecke* (2 im Winkel) · *Gerade* (verlängert eine zu lange Wand) · *Endstück* (Wandende an der Schubladenwand) |
+| 📌 **Aufsteck-Verbinder** | *Optional.* Lange Wände laufen über die Kreuzungen durch, die Verbinder werden von oben aufgesteckt. Weniger, längere Wände – dafür sind die Wände 2 mm niedriger, damit der Deckel bündig sitzt |
+| 🏷️ **Beschriftungsclips** | *Optional.* Werden oben auf eine Wand gesteckt |
 
 **Am Schubladenrand – vier Varianten:**
 
-| | |
+| Randart | So geht's |
 |---|---|
 | **Rahmen** | Außenwände mit Ecken und T-Stücken – steht für sich und lässt sich herausnehmen |
 | **Endstücke** | Keine Außenwand, die Wände enden mit einem Endstück an der Schubladenwand |
 | **Raster-Schienen** | Zahnschienen an den Seiten, die Wände rasten zwischen den Zähnen ein |
 | **Direkt klemmen** | Die Wände laufen bis zur Schubladenwand, kein Teil am Rand |
-
-</td></tr>
-</table>
 
 V3 ist der Nachfolger der MakerWorld-Projekte [V1 – The Drawer Dividers](https://makerworld.com/de/models/496828-the-drawer-dividers) und [V2 – Parametric System](https://makerworld.com/de/models/3106623-the-drawer-dividers-v2-parametric-system). Die Standardwerte sind die von V2: 2 mm Wände, 0,2 mm Toleranz, offene Verbinder.
 
