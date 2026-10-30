@@ -11,8 +11,6 @@ Count = 1; // [1:1:40]
 Spacing = 4; // [1:1:20]
 
 /* [System] */
-// Start from a preset or use the values below
-Preset = "custom"; // [custom:Custom (values below), v2:V2 defaults, v1:V1 Classic (4.9 mm walls with cap)]
 // Exact thickness of your printed walls (mm)
 Wall_Thickness = 2.0; // [0.8:0.1:10]
 // Extra slot width so the wall does not bind (mm, 0.2 fits most printers)
@@ -31,7 +29,7 @@ Arm_Length = 20; // [10:1:100]
 Inner_Fillet = 10; // [0:0.5:20]
 // Rounding of the outer edges (mm)
 Edge_Radius = 0.6; // [0:0.1:2]
-// Closed cap on one end like V1 (mm, 0 = open on both ends)
+// Closed cap on one end (mm, 0 = open on both ends)
 Cap_Thickness = 0; // [0:0.5:10]
 // Cap thickness of the slip-on connectors (mm)
 Floor_Thickness = 2; // [0.5:0.1:5]
@@ -53,7 +51,7 @@ Magnet_Depth = 2; // [0.1:0.1:10]
 /* [Hidden] */
 $fn = 64;
 
-P = Preset != "custom" ? dd_preset(Preset) : dd_profile(
+P = dd_profile(
     wall_t = Wall_Thickness, tol = Tolerance, height = Height,
     insert = Insert_Depth, shell = Shell_Thickness, arm = Arm_Length,
     fillet = Inner_Fillet, edge_r = Edge_Radius, cap = Cap_Thickness,

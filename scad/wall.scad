@@ -33,8 +33,6 @@ End_Chamfer = 0.5; // [0:0.1:2]
 Grip = 0; // [0:0.5:20]
 
 /* [System] */
-// Start from a preset or use the values below
-Preset = "custom"; // [custom:Custom (values below), v2:V2 defaults, v1:V1 Classic (4.9 mm walls with cap)]
 // Exact thickness of your printed walls (mm)
 Wall_Thickness = 2.0; // [0.8:0.1:10]
 // Extra slot width so the wall does not bind (mm, 0.2 fits most printers)
@@ -43,7 +41,7 @@ Tolerance = 0.2; // [0:0.01:1]
 Height = 40; // [10:1:150]
 // How deep the wall slides into an arm (mm)
 Insert_Depth = 14; // [5:1:30]
-// Closed cap on one end like V1 (mm, 0 = open on both ends)
+// Closed cap on one end (mm, 0 = open on both ends)
 Cap_Thickness = 0; // [0:0.5:10]
 // Cap thickness of the slip-on connectors (mm)
 Floor_Thickness = 2; // [0.5:0.1:5]
@@ -53,7 +51,7 @@ Top_Gap = 0.2; // [0:0.05:1]
 /* [Hidden] */
 $fn = 32;
 
-P = Preset != "custom" ? dd_preset(Preset) : dd_profile(
+P = dd_profile(
     wall_t = Wall_Thickness, tol = Tolerance, height = Height,
     insert = Insert_Depth, cap = Cap_Thickness, floor_t = Floor_Thickness,
     top_gap = Top_Gap);

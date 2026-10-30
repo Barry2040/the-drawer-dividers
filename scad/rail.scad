@@ -57,8 +57,6 @@ Screw_Diameter = 3.2; // [1:0.1:6]
 Head_Diameter = 6.5; // [2:0.1:12]
 
 /* [System] */
-// Start from a preset or use the values below
-Preset = "custom"; // [custom:Custom (values below), v2:V2 defaults, v1:V1 Classic (4.9 mm walls with cap)]
 // Exact thickness of your printed walls (mm)
 Wall_Thickness = 2.0; // [0.8:0.1:10]
 // Extra slot width so the wall does not bind (mm, 0.2 fits most printers)
@@ -67,8 +65,7 @@ Tolerance = 0.2; // [0:0.01:1]
 /* [Hidden] */
 $fn = 32;
 
-P = Preset != "custom" ? dd_preset(Preset)
-                       : dd_profile(wall_t = Wall_Thickness, tol = Tolerance);
+P = dd_profile(wall_t = Wall_Thickness, tol = Tolerance);
 
 module one_rail()
     dd_rail(Length, Width, P, plate = Plate, tooth_t = Tooth_Thickness,

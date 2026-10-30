@@ -3,7 +3,7 @@
 
   dist/makerworld/en/*.scad   single-file versions (library inlined) for MakerWorld
   dist/makerworld/de/*.scad   the same with German Customizer names
-  designer/scad_lib.js        library embedded into the designer for the job export
+  designer/scad_lib.js        library embedded into the HTML designer for the job export
 
 Run from anywhere:  python tools/build.py
 """
@@ -14,9 +14,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SCAD = ROOT / "scad"
 LIB = SCAD / "lib" / "drawer_divider.scad"
-ENTRIES = ["connector.scad", "wall.scad", "rail.scad", "tolerance_test.scad"]
+ENTRIES = ["drawer_designer.scad", "connector.scad", "wall.scad", "rail.scad", "tolerance_test.scad"]
 
-from i18n_de import FILES as DE_FILES, SECTIONS as DE_SECTIONS, VARS as DE_VARS, LABELS as DE_LABELS  # noqa: E402
+from i18n_de import FILES as DE_FILES, SECTIONS as DE_SECTIONS, VARS as DE_VARS, LABELS as DE_LABELS, DEFAULTS as DE_DEFAULTS  # noqa: E402
 
 USE_RE = re.compile(r"^\s*use\s*<lib/drawer_divider\.scad>\s*$")
 SECTION_RE = re.compile(r"^/\*\s*\[(.+?)\]\s*\*/\s*$")
@@ -59,8 +59,8 @@ def inline(src: str, translate: bool) -> str:
                 out.append(f"// {de_desc}" if de_desc else pending_desc)
                 pending_desc = None
             opts = v.group(5)
-            tail = f" // [{translate_options(opts)}]" if opts is not None else ""
-            out.append(f"{de_name}{v.group(2)}{v.group(3)};{tail}")
+            tail = f" // [{translate_options(opts, en)}]" if opts is not None else ""
+            out.append(f"{de_name}{v.group(2)}{DE_DEFAULTS.get(en, v.group(3))};{tail}")
             aliases.append(f"{en} = {de_name};")
             continue
         if pending_desc is not None:
@@ -73,7 +73,7 @@ def inline(src: str, translate: bool) -> str:
     return text + banner + library_body()
 
 
-def translate_options(opts: str) -> str:
+def translate_options(opts: str, var: str) -> str:
     # only "value:Label" lists carry text; ranges like 1:1:40 stay as they are
     parts = [p.strip() for p in opts.split(",")]
     if not all(":" in p for p in parts) or re.fullmatch(r"[-\d.]+(:[-\d.]+){1,2}", opts.strip()):
@@ -81,7 +81,7 @@ def translate_options(opts: str) -> str:
     res = []
     for p in parts:
         value, label = p.split(":", 1)
-        res.append(f"{value}:{DE_LABELS.get(value.strip(), label)}")
+        res.append(f"{value}:{DE_LABELS.get(var + '.' + value.strip(), DE_LABELS.get(value.strip(), label))}")
     return ", ".join(res)
 
 

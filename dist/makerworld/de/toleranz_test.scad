@@ -34,7 +34,7 @@ dd_tolerance_test(dd_profile(wall_t = Wall_Thickness), tols,
 //  Library (scad/lib/drawer_divider.scad, inlined by tools/build.py)
 // ============================================================================
 // =============================================================================
-//  The Drawer Dividers – core library (V3, unifies V1 + V2)
+//  The Drawer Dividers – core library (V3)
 //  Usage:  use <lib/drawer_divider.scad>
 //  All dimensions in mm. This file creates no geometry on its own.
 // =============================================================================
@@ -58,7 +58,7 @@ function dd_profile(
     arm      = 20,   // arm length, measured from the connector centre
     fillet   = 10,   // inner fillet radius between two arms
     edge_r   = 0.6,  // rounding of the outer vertical edges
-    cap      = 0,    // closed cap (V1 style); 0 = slots open on both ends
+    cap      = 0,    // closed cap; 0 = slots open on both ends
     floor_t  = 2,    // cap thickness of slip-on connectors
     lead_in  = 1,    // chamfer at the open slot end
     efc      = 0.4,  // elephant foot compensation at the bed side
@@ -79,15 +79,9 @@ function dd(p, key) =
     assert(is_num(i), str("dd(): unknown profile key '", key, "'"))
     p[i][1];
 
-// "v2": 2 mm walls, open connectors (V2 defaults)
-// "v1": 4.9 mm walls, 50 mm high, 5 mm cap – matches the original V1 STLs
-function dd_preset(name) =
-    name == "v1" ? dd_profile(wall_t = 4.9, tol = 0.1, height = 50, cap = 5,
-                              lead_in = 0.6, efc = 0, magnet_d = 0,
-                              edge_r = 0.5, top_gap = 0.1)
-                 : dd_profile();
-
 // ---- derived values (the designer uses the same formulas) -------------------
+// centre distance two connectors on one wall need so their arms do not collide
+function dd_min_conn_gap(p) = 2 * dd(p, "arm") + 1;
 function dd_slot_w(p)       = dd(p, "wall_t") + dd(p, "tol");
 function dd_arm_w(p)        = dd_slot_w(p) + 2 * dd(p, "shell");
 function dd_pocket_start(p) = dd(p, "arm") - dd(p, "insert");
@@ -110,8 +104,8 @@ function dd_wall_length(center_dist, p, ends = 2) =
 //   through_y: one continuous slot along Y (the wall passes straight through)
 //   slip_on:   printed cap-down, then flipped and pushed onto the walls
 
-DD_CONNECTOR_TYPES = ["cross", "tee", "corner", "straight", "end",
-                      "slip_cross", "slip_tee", "slip_corner_r", "slip_corner_l"];
+function dd_connector_types() = ["cross", "tee", "corner", "straight", "end",
+                                  "slip_cross", "slip_tee", "slip_corner_r", "slip_corner_l"];
 
 function dd_connector_def(type) =
     type == "cross"         ? [[1,1,1,1], [1,1,1,1], false, false] :
@@ -387,3 +381,279 @@ module dd_grid(count, pitch_x, pitch_y, max_w = 240) {
 
 // Lay a standing wall flat on the bed.
 module dd_lay_flat(t) { translate([0, 0, t / 2]) rotate([90, 0, 0]) children(); }
+
+// =============================================================================
+//  Drawer layout – used by drawer_designer.scad
+// =============================================================================
+// The drawer is cut into strips (u axis), each strip into compartments
+// (v axis). Strip walls run through from edge to edge. Strips run front to
+// back unless `swap` is set. dd_layout() works in u/v and returns world
+// coordinates: x = width, y = depth, front edge at y = 0.
+// Directions: 0 = +X, 1 = +Y, 2 = -X, 3 = -Y.
+
+function dd_le() = 0.01;   // a function, so inlined single files can use it before this line
+
+// ---- string parsing ("1,1,2" and "2,1:2") ----------------------------------
+function dd_str_split(s, sep, i = 0, cur = "", acc = []) =
+    i >= len(s) ? concat(acc, [cur])
+  : s[i] == sep ? dd_str_split(s, sep, i + 1, "", concat(acc, [cur]))
+  : dd_str_split(s, sep, i + 1, str(cur, s[i]), acc);
+
+function dd_str_num(s) = dd__num([for (c = s) if (c != " ") c], 0, 0, 0, 1);
+function dd__num(c, i, v, frac, sign) =
+    i >= len(c) ? sign * v
+  : c[i] == "-" ? dd__num(c, i + 1, v, frac, -1)
+  : c[i] == "." ? dd__num(c, i + 1, v, max(frac, 0.1), sign)
+  : let(d = ord(c[i]) - 48)
+    d < 0 || d > 9 ? dd__num(c, i + 1, v, frac, sign)
+  : frac > 0 ? dd__num(c, i + 1, v + d * frac, frac / 10, sign)
+             : dd__num(c, i + 1, v * 10 + d, 0, sign);
+
+// "1,1,2" -> [1,1,2]
+function dd_parse_weights(s) =
+    let(v = [for (p = dd_str_split(s, ",")) let(n = dd_str_num(p)) if (n > 0) n])
+    len(v) ? v : [1];
+
+// "2,1:2" -> one weight list per strip; a plain number n = n equal parts.
+// Missing entries repeat the last one.
+function dd_parse_splits(s, n) =
+    let(per = [for (it = dd_str_split(s, ","))
+                  let(p = [for (x = dd_str_split(it, ":")) let(v = dd_str_num(x)) if (v > 0) v])
+                  len(p) == 0 ? [1]
+                : len(p) == 1 ? [for (k = [1 : max(1, round(p[0]))]) 1] : p])
+    [for (i = [0 : n - 1]) per[min(i, len(per) - 1)]];
+
+// ---- small list helpers ----------------------------------------------------
+function dd_has_num(l, x) = len([for (y = l) if (abs(y - x) < dd_le()) 1]) > 0;
+function dd_sort(a) =
+    len(a) <= 1 ? a :
+    let(p = a[floor(len(a) / 2)])
+    concat(dd_sort([for (x = a) if (x < p) x]), [for (x = a) if (x == p) x], dd_sort([for (x = a) if (x > p) x]));
+function dd_uniq_sorted(l) = [for (k = [0 : 1 : len(l) - 1]) if (k == 0 || l[k] - l[k - 1] > dd_le()) l[k]];
+function dd_unique(l, i = 0, acc = []) =
+    i >= len(l) ? acc : dd_unique(l, i + 1, len([for (y = acc) if (y == l[i]) 1]) ? acc : concat(acc, [l[i]]));
+function dd_count(l, x) = len([for (y = l) if (y == x) 1]);
+function dd_nearest(l, v) = len(l) == 0 ? v : let(d = [for (x = l) abs(x - v)]) l[search(min(d), d)[0]];
+function dd_fmt(v, d = 1) = str(round(v * pow(10, d)) / pow(10, d));
+
+// ---- options ---------------------------------------------------------------
+function dd_layout_opts(width = 400, depth = 300, height = 60, strips = "1,1,1",
+                        splits = "2", swap = false, edge = "frame", slip = false,
+                        max_len = 240, edge_gap = 0.5, clamp_gap = 1,
+                        rail_plate = 2.5, tooth_t = 2, tooth_h = 6) = [
+    ["width", width], ["depth", depth], ["height", height], ["strips", strips],
+    ["splits", splits], ["swap", swap], ["edge", edge], ["slip", slip],
+    ["max_len", max_len], ["edge_gap", edge_gap], ["clamp_gap", clamp_gap],
+    ["rail_plate", rail_plate], ["tooth_t", tooth_t], ["tooth_h", tooth_h]
+];
+
+// Rail tooth pattern along one world axis. Rails on the left/right sides run
+// the full depth; front/back rails sit between them.
+function dd_lay_rail_span(axis, W, D, rt) =
+    axis == "y" ? [0.5, D - 1] : [rt + 0.5, W - 2 * rt - 1];
+
+function dd_lay_rail_slots(axis, W, D, rt, tt, p) =
+    let(sp = dd_lay_rail_span(axis, W, D, rt), sw = dd_slot_w(p), pitch = tt + sw,
+        n = max(1, floor((sp[1] + sw) / pitch)),
+        first = sp[0] + dd_rail_center_offset(sp[1], p, tt))
+    [for (k = [0 : 1 : n - 2]) first + tt + sw / 2 + k * pitch];
+
+// interior wall centres between c0 and c1 so the *net* compartments follow the weights
+function dd_lay_split(c0, c1, off, w, t) =
+    let(n = len(w), net = (c1 - off) - (c0 + off) - (n - 1) * t, tot = dd_sum(w, n))
+    [for (k = [1 : 1 : n - 1]) c0 + off + net * dd_sum(w, k) / tot + (k - 1) * t + t / 2];
+
+// node: [u, v, dirs, kind ("conn"|"edge"), type, through ("u"|"v"|""), end offset, joint]
+function dd_lay_node(u, v, d, edge, slip, end_off, joint = false) =
+    let(n = d[0] + d[1] + d[2] + d[3])
+    n == 1 && (edge == "rail" || edge == "none") ? [u, v, d, "edge", "", "", end_off, false] :
+    let(t0 = n == 4 ? "cross" : n == 3 ? "tee" : n == 1 ? "end"
+           : (d[0] == 1 && d[2] == 1) || (d[1] == 1 && d[3] == 1) ? "straight" : "corner",
+        th = slip && n >= 3 ? (d[1] == 1 && d[3] == 1 ? "v" : "u") : "")
+    [u, v, d, "conn", th == "" ? t0 : (n == 4 ? "slip_cross" : "slip_tee"), th, 0, joint];
+
+// slip-on: positions along a through wall where it should end at a crossing instead of
+// getting a joiner squeezed between two connectors (greedy, each piece <= maxlen)
+function dd_lay_slip_cuts(stops, prev, last, ins, maxlen, acc = []) =
+    last - prev - 2 * ins <= maxlen ? acc :
+    let(ok = [for (u = stops) if (u > prev + dd_le() && u < last - dd_le() && u - prev - 2 * ins <= maxlen) u])
+    len(ok) == 0 ? acc : dd_lay_slip_cuts(stops, max(ok), last, ins, maxlen, concat(acc, [max(ok)]));
+
+function dd_lay_find(nodes, u, v) =
+    let(m = [for (n = nodes) if (abs(n[0] - u) < dd_le() && abs(n[1] - v) < dd_le()) n]) m[0];
+
+function dd_lay_align(v, m, i = 0, acc = []) =
+    i >= len(v) ? acc :
+    dd_lay_align(v, m, i + 1, concat(acc, [i == 0 ? v[0] :
+        [for (y = v[i]) let(prev = acc[i - 1], d = [for (q = prev) abs(q - y)])
+            len(prev) && min(d) < m ? prev[search(min(d), d)[0]] : y]]));
+
+function dd_lay_off(n, ins) = n[3] == "edge" ? n[6] : ins;
+
+// joints that split a too long wall, kept clear of other connectors on the line
+function dd_lay_kpieces(total, ins, maxlen, k = 1) =
+    (total - (k - 1) * 2 * ins) / k <= maxlen || k >= 50 ? k : dd_lay_kpieces(total, ins, maxlen, k + 1);
+
+function dd_lay_joints(u0, u1, o0, o1, ins, maxlen, avoid, clear) =
+    let(total = u1 - u0 - o0 - o1, k = dd_lay_kpieces(total, ins, maxlen),
+        pl = (total - (k - 1) * 2 * ins) / k)
+    k <= 1 ? [] : dd__joints(1, k, u0 + o0, pl, ins, maxlen, avoid, clear, []);
+
+function dd__joints(j, k, start, pl, ins, maxlen, avoid, clear, acc) =
+    j >= k ? acc :
+    let(ideal = start + j * pl + (2 * j - 1) * ins,
+        prev  = len(acc) ? acc[len(acc) - 1] + ins : start,
+        cands = [for (d = [0 : 2.5 : 80], c = [ideal + d, ideal - d])
+                    if (len([for (a = avoid) if (abs(a - c) < clear) 1]) == 0 && c - ins - prev <= maxlen) c])
+    dd__joints(j + 1, k, start, pl, ins, maxlen, avoid, clear, concat(acc, [len(cands) ? cands[0] : ideal]));
+
+// cuts: [[u, offset], ...] -> [pieces [[ori, c, s, e]], joints [[ori, c, u]]]
+function dd_lay_line(ori, c, cuts, avoid, ins, maxlen, clear) =
+    let(segs = [for (k = [0 : 1 : len(cuts) - 2])
+        let(u0 = cuts[k][0], o0 = cuts[k][1], u1 = cuts[k + 1][0], o1 = cuts[k + 1][1],
+            js = dd_lay_joints(u0, u1, o0, o1, ins, maxlen,
+                               [for (a = avoid) if (a > u0 + dd_le() && a < u1 - dd_le()) a], clear),
+            b  = concat([u0 + o0], [for (jc = js) each [jc - ins, jc + ins]], [u1 - o1]))
+        [[for (m = [0 : 2 : len(b) - 2]) [ori, c, b[m], b[m + 1]]], js]])
+    [[for (s = segs) each s[0]], [for (s = segs) for (jc = s[1]) [ori, c, jc]]];
+
+// Returns a key/value list:
+//   walls  [[axis "x"|"y", c, start, end, length], ...]   axis = direction the wall runs
+//   conns  [[type, x, y, dirs, through "x"|"y"|"", joint], ...]
+//   rails  [[side "L"|"R"|"F"|"B", start, end, length, teeth_offset, tongue, socket, screws], ...]
+//   comps  [[x0, y0, x1, y1, net_w, net_d], ...]
+//   wall_h, rail_w, rail_t, inset
+function dd_layout(p, o) =
+    let(
+        W = dd(o, "width"), D = dd(o, "depth"), swap = dd(o, "swap"),
+        U = swap ? D : W, V = swap ? W : D,
+        edge = dd(o, "edge"), slip = dd(o, "slip"), frame = edge == "frame", rail = edge == "rail",
+        maxlen = dd(o, "max_len"),
+        t = dd(p, "wall_t"), aw = dd_arm_w(p), ins = dd_wall_inset(p),
+        tt = dd(o, "tooth_t"), rt = dd(o, "rail_plate") + dd(o, "tooth_h"),
+        B = (frame || edge == "endcap") ? aw / 2 + dd(o, "edge_gap") : 0,
+        base = frame ? B : 0,
+        eoff = frame ? t / 2 : rail ? rt : 0,
+        end_off = rail ? dd(o, "rail_plate") + dd(p, "end_gap") : dd(o, "clamp_gap"),
+        clear = 2 * dd(p, "arm") + 2,
+        cols = dd_parse_weights(dd(o, "strips")), ncol = len(cols),
+        rows = dd_parse_splits(dd(o, "splits"), ncol),
+        su = rail ? dd_lay_rail_slots(swap ? "y" : "x", W, D, rt, tt, p) : [],
+        sv = rail ? dd_lay_rail_slots(swap ? "x" : "y", W, D, rt, tt, p) : [],
+        us = concat([base], [for (x = dd_lay_split(base, U - base, eoff, cols, t)) rail ? dd_nearest(su, x) : x], [U - base]),
+        // compartment borders that almost line up with the neighbouring strip snap onto it,
+        // otherwise the arms of the two connectors on the strip wall would collide
+        vsi = dd_lay_align([for (i = [0 : ncol - 1])
+                  [for (y = dd_lay_split(base, V - base, eoff, rows[i], t)) rail ? dd_nearest(sv, y) : y]],
+                  dd_min_conn_gap(p)),
+
+        // nodes on the through-running strip walls (and the frame sides)
+        vjs = frame ? [for (j = [0 : ncol]) j] : [for (j = [1 : 1 : ncol - 1]) j],
+        vstops = [for (j = [0 : ncol])
+                     dd_uniq_sorted(dd_sort(concat([B, V - B], j >= 1 ? vsi[j - 1] : [], j < ncol ? vsi[j] : [])))],
+        // slip-on: crossings where too long through walls end (they become normal connectors)
+        vcut = [for (j = [0 : ncol]) slip ? dd_lay_slip_cuts(vstops[j], B, V - B, ins, maxlen) : []],
+        fcut = slip && frame ? dd_lay_slip_cuts([for (k = [1 : 1 : ncol - 1]) us[k]], us[0], us[ncol], ins, maxlen) : [],
+        vnodes = [for (j = vjs, v = vstops[j])
+            let(isEnd = abs(v - B) < dd_le() || abs(v - (V - B)) < dd_le(),
+                slipHere = slip && !(isEnd ? dd_has_num(fcut, us[j]) : dd_has_num(vcut[j], v)),
+                d = [(j < ncol && dd_has_num(vsi[j], v)) || (frame && isEnd && j < ncol) ? 1 : 0,
+                     v < V - B - dd_le() ? 1 : 0,
+                     (j >= 1 && dd_has_num(vsi[j - 1], v)) || (frame && isEnd && j > 0) ? 1 : 0,
+                     v > B + dd_le() ? 1 : 0])
+            dd_lay_node(us[j], v, d, edge, slipHere, end_off)],
+        // compartment walls that end at the drawer side
+        hnodes = frame ? [] : concat(
+            [for (v = vsi[0]) dd_lay_node(B, v, [1, 0, 0, 0], edge, slip, end_off)],
+            [for (v = vsi[ncol - 1]) dd_lay_node(U - B, v, [0, 0, 1, 0], edge, slip, end_off)]),
+        nodes = concat(vnodes, hnodes),
+
+        vlines = [for (j = vjs)
+            dd_lay_line("v", us[j],
+                [for (v = vstops[j]) let(n = dd_lay_find(nodes, us[j], v))
+                    if (abs(v - B) < dd_le() || abs(v - (V - B)) < dd_le() || n[5] != "v") [v, dd_lay_off(n, ins)]],
+                vstops[j], ins, maxlen, clear)],
+        hlines = [for (i = [0 : ncol - 1], v = vsi[i])
+            let(ua = i == 0 ? B : us[i], ub = i == ncol - 1 ? U - B : us[i + 1])
+            dd_lay_line("u", v, [[ua, dd_lay_off(dd_lay_find(nodes, ua, v), ins)],
+                                 [ub, dd_lay_off(dd_lay_find(nodes, ub, v), ins)]],
+                        [], ins, maxlen, clear)],
+        flines = frame ? [for (v = [B, V - B])
+            dd_lay_line("u", v, [for (k = [0 : ncol]) if (k == 0 || k == ncol || !slip || dd_has_num(fcut, us[k])) [us[k], ins]],
+                        us, ins, maxlen, clear)] : [],
+        lines = concat(vlines, hlines, flines),
+        pieces = [for (l = lines) each l[0]],
+        joints = [for (l = lines, jn = l[1])
+            dd_lay_node(jn[0] == "u" ? jn[2] : jn[1], jn[0] == "u" ? jn[1] : jn[2],
+                        jn[0] == "u" ? [1, 0, 1, 0] : [0, 1, 0, 1], edge, false, 0, true)],
+        lconns = concat([for (n = nodes) if (n[3] == "conn") n], joints),
+
+        // world coordinates
+        walls = [for (pc = pieces)
+            [(pc[0] == "u") != swap ? "x" : "y", pc[1], pc[2], pc[3], pc[3] - pc[2]]],
+        conns = [for (n = lconns)
+            [n[4], swap ? n[1] : n[0], swap ? n[0] : n[1],
+             swap ? [n[2][1], n[2][0], n[2][3], n[2][2]] : n[2],
+             n[5] == "" ? "" : ((n[5] == "u") != swap ? "x" : "y"), n[7]]],
+
+        // rails: one or more pieces per drawer side that has wall ends
+        wall_h = dd_wall_height(p, slip),
+        rail_w = min(wall_h, dd(o, "height")),
+        uEdges = rail ? [len(vsi[0]) > 0, len(vsi[ncol - 1]) > 0] : [false, false],
+        vEdges = rail ? [ncol > 1, ncol > 1] : [false, false],
+        sides = [for (s = [["L", swap ? vEdges[0] : uEdges[0]], ["R", swap ? vEdges[1] : uEdges[1]],
+                           ["F", swap ? uEdges[0] : vEdges[0]], ["B", swap ? uEdges[1] : vEdges[1]]]) if (s[1]) s[0]],
+        pitch = tt + dd_slot_w(p),
+        rails = [for (side = sides)
+            let(axis = side == "L" || side == "R" ? "y" : "x",
+                sp = dd_lay_rail_span(axis, W, D, rt),
+                first = sp[0] + dd_rail_center_offset(sp[1], p, tt),
+                k = ceil(sp[1] / maxlen), pl = sp[1] / k)
+            for (i = [0 : k - 1])
+                let(ps = sp[0] + i * pl)
+                [side, ps, ps + pl, pl, ((first - ps) % pitch + pitch) % pitch, i < k - 1, i > 0,
+                 max(1, round(pl / 70))]],
+
+        // compartments with their net (inside) size
+        comps = [for (i = [0 : ncol - 1])
+            let(vs = concat([base], vsi[i], [V - base]), u0 = us[i], u1 = us[i + 1])
+            for (k = [0 : len(vs) - 2])
+                let(v0 = vs[k], v1 = vs[k + 1],
+                    so = [for (c = [[u0, U], [u1, U], [v0, V], [v1, V]])
+                             abs(c[0]) < dd_le() || abs(c[0] - c[1]) < dd_le() ? (rail ? rt : 0) : t / 2],
+                    nu = u1 - u0 - so[0] - so[1], nv = v1 - v0 - so[2] - so[3])
+                swap ? [v0, u0, v1, u1, nv, nu] : [u0, v0, u1, v1, nu, nv]]
+    ) [
+        ["walls", walls], ["conns", conns], ["rails", rails], ["comps", comps],
+        ["wall_h", wall_h], ["rail_w", rail_w], ["rail_t", rt], ["inset", B]
+    ];
+
+// ---- parts list ------------------------------------------------------------
+function dd_wall_len_round(l) = floor(l * 10 + 0.05) / 10;
+
+// Connectors whose bodies overlap: on one line each reaches an arm length towards
+// its neighbour where it has an arm, half its width where it has none.
+// Returns the indices into dd(L, "conns") that collide with another connector.
+function dd_layout_clashes(L, p) =
+    let(cs = dd(L, "conns"), n = len(cs), arm = dd(p, "arm"), aw = dd_arm_w(p),
+        reach = function(d, i) d[i] ? arm : aw / 2,
+        hit = function(a, b)
+            let(sameY = abs(a[2] - b[2]) < dd_le(), sameX = abs(a[1] - b[1]) < dd_le(),
+                lo = sameY ? (a[1] < b[1] ? a : b) : (a[2] < b[2] ? a : b),
+                hi = lo == a ? b : a)
+            sameY ? hi[1] - lo[1] < reach(lo[3], 0) + reach(hi[3], 2) + 1 - dd_le()
+          : sameX ? hi[2] - lo[2] < reach(lo[3], 1) + reach(hi[3], 3) + 1 - dd_le()
+          : false)
+    [for (i = [0 : 1 : n - 1]) if (len([for (j = [0 : 1 : n - 1]) if (j != i && hit(cs[i], cs[j])) 1]) > 0) i];
+
+// [[kind "c"|"w"|"r", spec, qty], ...] – connectors, then walls (longest first), then rails
+function dd_layout_bom(L) =
+    let(conns = dd(L, "conns"), walls = dd(L, "walls"), rails = dd(L, "rails"),
+        ctypes = [for (c = conns) c[0]],
+        lens   = [for (w = walls) if (w[4] > 0) dd_wall_len_round(w[4])],
+        ulens  = dd_uniq_sorted(dd_sort(lens)),
+        rspec  = [for (r = rails) [round(r[3] * 100) / 100, round(r[4] * 100) / 100, r[5], r[6], r[7]]])
+    concat(
+        [for (t = dd_connector_types()) if (dd_count(ctypes, t) > 0) ["c", t, dd_count(ctypes, t)]],
+        [for (k = [len(ulens) - 1 : -1 : 0]) ["w", ulens[k], len([for (l = lens) if (abs(l - ulens[k]) < dd_le()) 1])]],
+        [for (r = dd_unique(rspec)) ["r", r, dd_count(rspec, r)]]);

@@ -13,14 +13,13 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 const STORE_KEY = 'dd-designer-v3';
 
 // ---------------------------------------------------------------------------
-// Presets & defaults
+// Defaults & saved profiles
 // ---------------------------------------------------------------------------
-const PRESETS = {
-  v2: { wall_t: 2, tol: 0.2, height: 40, insert: 14, shell: 2.5, arm: 20, fillet: 10, edge_r: 0.6, cap: 0,
-        floor_t: 2, lead_in: 1, efc: 0.4, magnet_d: 5, magnet_h: 2, end_gap: 0.3, top_gap: 0.2 },
-  v1: { wall_t: 4.9, tol: 0.1, height: 50, insert: 14, shell: 2.5, arm: 20, fillet: 10, edge_r: 0.5, cap: 5,
-        floor_t: 2, lead_in: 0.6, efc: 0, magnet_d: 0, magnet_h: 2, end_gap: 0.3, top_gap: 0.1 },
-};
+const DEFAULT_PROFILE = { wall_t: 2, tol: 0.2, height: 40, insert: 14, shell: 2.5, arm: 20, fillet: 10, edge_r: 0.6, cap: 0,
+                          floor_t: 2, lead_in: 1, efc: 0.4, magnet_d: 5, magnet_h: 2, end_gap: 0.3, top_gap: 0.2 };
+const AUTO_AIR = 5;                        // headroom above the dividers when the height follows the drawer
+const PROFILES_KEY = 'dd-designer-profiles';
+const PER_DRAWER = ['border', 'slip'];     // settings that belong to the drawer design, not to a profile
 
 const TYPES = {
   cross:      { name: 'Kreuz', desc: '4 Wände treffen sich' },
@@ -34,18 +33,25 @@ const TYPES = {
 const TYPE_ORDER = Object.keys(TYPES);
 
 function defaultSettings() {
-  return { border: 'frame', slip: false, maxLen: 240, grid: 5, bed: 256, borderGap: 0.5, noneGap: 1,
+  return { border: 'frame', slip: false, autoH: true, maxLen: 240, grid: 5, bed: 256, borderGap: 0.5, noneGap: 1,
            pattern: 'hex', orient: 'standing', grip: 0, density: '1.24',
            railPlate: 2.5, toothT: 2, toothH: 6 };
 }
 function defaultState() {
   return { version: 3, name: 'Meine Schublade', drawer: { w: 400, d: 300, h: 60 },
-           preset: 'v2', profile: { ...PRESETS.v2 }, settings: defaultSettings(), walls: [] };
+           preset: '', profile: { ...DEFAULT_PROFILE }, settings: defaultSettings(), walls: [] };
 }
 
 // ---------------------------------------------------------------------------
 // Derived geometry
 // ---------------------------------------------------------------------------
+// centre distance two connectors on one wall need so their arms do not collide
+const minConnGap = (g, p) => 2 * p.arm + 1;
+
+function syncAuto(S) {
+  if (S.settings.autoH) S.profile.height = Math.max(10, Math.floor(S.drawer.h - AUTO_AIR));
+}
+
 function geom(S) {
   const p = S.profile, s = S.settings;
   const slotW = p.wall_t + p.tol;
@@ -170,7 +176,23 @@ function analyze(S) {
                                                               : near(n.x, l.c) && n.y >= l.a - EPS && n.y <= l.b + EPS)
                                        .map(n => l.o === 'h' ? n.x : n.y).sort((a, b) => a - b);
     l.stops = stops;
-    const cuts = stops.filter((u, i) => i === 0 || i === stops.length - 1 || at(u).through !== l.o);
+    let cuts = stops.filter((u, i) => i === 0 || i === stops.length - 1 || at(u).through !== l.o);
+    // slip-on: a through wall that is too long ends at a crossing instead of getting a joiner
+    // squeezed between connectors; that crossing becomes a normal cross / T
+    if (st.slip) {
+      const extra = [];
+      for (let i = 0; i + 1 < cuts.length; i++) {
+        const u1 = cuts[i + 1], o1 = offOf(at(u1));
+        let prev = cuts[i], prevOff = offOf(at(prev));
+        while (u1 - prev - prevOff - o1 > st.maxLen) {
+          const ok = stops.filter(u => u > prev + EPS && u < u1 - EPS && u - prev - prevOff - g.inset <= st.maxLen);
+          if (!ok.length) break;   // no crossing close enough: joiners take over below
+          prev = ok[ok.length - 1]; prevOff = g.inset; extra.push(prev);
+        }
+      }
+      for (const u of extra) { const n = at(u); n.through = null; n.type = n.dirs[0] + n.dirs[1] + n.dirs[2] + n.dirs[3] === 4 ? 'cross' : 'tee'; }
+      if (extra.length) cuts = [...cuts, ...extra].sort((a, b) => a - b);
+    }
     for (let i = 0; i + 1 < cuts.length; i++) {
       const u0 = cuts[i], u1 = cuts[i + 1], o0 = offOf(at(u0)), o1 = offOf(at(u1));
       const total = u1 - u0 - o0 - o1;
@@ -190,10 +212,11 @@ function analyze(S) {
         }
         jcs.push(best);
       }
-      let s = u0 + o0;
+      let s = u0 + o0, edge0 = at(u0).kind === 'edge';
       for (const jc of [...jcs, null]) {
         const e = jc === null ? u1 - o1 : jc - g.inset;
-        pieces.push({ o: l.o, c: l.c, s, e, len: e - s, frame: !!l.frame });
+        pieces.push({ o: l.o, c: l.c, s, e, len: e - s, frame: !!l.frame, edge: edge0 || (jc === null && at(u1).kind === 'edge') });
+        edge0 = false;
         if (jc !== null) {
           joints.push(l.o === 'h' ? { x: jc, y: l.c, dirs: [1, 0, 1, 0] } : { x: l.c, y: jc, dirs: [0, 1, 0, 1] });
           s = jc + g.inset;
@@ -204,11 +227,34 @@ function analyze(S) {
   }
   for (const j of joints) { j.kind = 'conn'; j.type = 'straight'; j.joint = true; nodes.set('j' + j.x + ',' + j.y, j); }
 
-  const minLen = Math.max(8, g.armW);
+  // a wall from the drawer side must be long enough that the connector arm does not hit the side
+  const minLen = Math.max(8, g.armW), minEdgeLen = Math.max(minLen, p.arm - g.inset + 1);
   let tooShort = 0, negative = 0;
-  for (const pc of pieces) { if (pc.len <= 0) { pc.bad = true; negative++; } else if (pc.len < minLen) { pc.bad = true; tooShort++; } }
-  if (negative) msgs.push({ lvl: 'err', text: `${negative} Wandstück(e) passen nicht – Verbinder liegen zu dicht beieinander (mind. ${fmt(2 * g.inset + minLen, 0)} mm Abstand).` });
-  if (tooShort) msgs.push({ lvl: 'warn', text: `${tooShort} sehr kurze Wandstück(e) unter ${fmt(minLen, 0)} mm – rot markiert.` });
+  for (const pc of pieces) {
+    if (pc.len <= 0) { pc.bad = true; negative++; }
+    else if (pc.len < (pc.edge ? minEdgeLen : minLen)) { pc.bad = true; tooShort++; }
+  }
+  if (negative) msgs.push({ lvl: 'err', text: `${negative} Wandstück(e) passen nicht – Verbinder liegen zu dicht beieinander (mind. ${fmt(minConnGap(g, p), 0)} mm Abstand).` });
+  if (tooShort) msgs.push({ lvl: 'warn', text: `${tooShort} zu kurze Wandstück(e) – rot markiert.` });
+
+  // connector bodies on the same line must not overlap: each reaches one arm length
+  // towards the neighbour where it has an arm, half its width where it has none
+  const conns = [...nodes.values()].filter(n => n.kind === 'conn');
+  let collisions = 0;
+  for (const [ax, lo, hi] of [['y', 0, 2], ['x', 1, 3]]) {
+    const groups = new Map();
+    for (const n of conns) { const k = n[ax].toFixed(2); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(n); }
+    const along = ax === 'y' ? 'x' : 'y';
+    for (const grp of groups.values()) {
+      grp.sort((a, b) => a[along] - b[along]);
+      for (let i = 0; i + 1 < grp.length; i++) {
+        const a = grp[i], b = grp[i + 1];
+        const need = (a.dirs[lo] ? p.arm : g.armW / 2) + (b.dirs[hi] ? p.arm : g.armW / 2) + 1;
+        if (b[along] - a[along] < need - EPS) { a.clash = b.clash = true; collisions++; }
+      }
+    }
+  }
+  if (collisions) msgs.push({ lvl: 'err', text: `${collisions}× überschneiden sich Verbinder – Wände auf einer Linie brauchen mind. ${fmt(minConnGap(g, p), 0)} mm Abstand (rot markiert).` });
 
   // rails
   const rails = [];
@@ -247,7 +293,8 @@ function analyze(S) {
   if (st.slip && p.cap === 0) msgs.push({ lvl: 'info', text: `Aufsteck-Modus: Alle Wände sind ${fmt(p.floor_t)} mm niedriger, damit die Aufsteck-Verbinder bündig sitzen.` });
 
   const bom = buildBom(S, g, nodes, pieces, rails);
-  return { g, H, V, lines, nodes: [...nodes.values()], pieces, rails, comps, bom, msgs };
+  const conflicts = pieces.filter(pc => pc.bad).length + collisions;
+  return { g, H, V, lines, nodes: [...nodes.values()], pieces, rails, comps, bom, msgs, conflicts };
 }
 
 function findCompartments(S, g, H0, V0) {
@@ -382,6 +429,7 @@ function buildBom(S, g, nodes, pieces, rails) {
 // State, history, persistence
 // ---------------------------------------------------------------------------
 let S = loadStored() || withSample(defaultState());
+syncAuto(S);
 let A = null;
 const hist = { past: [], future: [] };
 const ui = { tool: 'draw', view: { s: 1, tx: 0, ty: 0 }, drag: null, hover: null, sel: null, mouse: null,
@@ -397,8 +445,12 @@ function loadStored() {
 function migrate(o) {
   const d = defaultState();
   if (!o || typeof o !== 'object') return d;
-  return { ...d, ...o, drawer: { ...d.drawer, ...o.drawer }, profile: { ...d.profile, ...o.profile },
-           settings: { ...d.settings, ...o.settings }, walls: Array.isArray(o.walls) ? o.walls.filter(w => w && (w.o === 'h' || w.o === 'v')) : [] };
+  const r = { ...d, ...o, drawer: { ...d.drawer, ...o.drawer }, profile: { ...d.profile, ...o.profile },
+              settings: { ...d.settings, ...o.settings }, walls: Array.isArray(o.walls) ? o.walls.filter(w => w && (w.o === 'h' || w.o === 'v')) : [] };
+  if (['v1', 'v2', 'custom'].includes(r.preset)) r.preset = '';   // old built-in presets
+  if (o.settings && !('autoH' in o.settings)) r.settings.autoH = false;   // older saves: keep their own height
+  syncAuto(r);
+  return r;
 }
 function persist() { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch { /* storage unavailable */ } }
 
@@ -459,6 +511,34 @@ function snapAxis(v, axis, opts = {}) {
   return r2(clamp(Math.round(v / st.grid) * st.grid, g.B, L - g.B));
 }
 const snapPt = (x, y) => ({ x: snapAxis(x, 'x'), y: snapAxis(y, 'y') });
+
+// A wall right next to a parallel wall or the drawer edge leaves no room for the
+// connectors (they would stick out or overlap). Returns the position to use:
+// merged onto the neighbour when it is within one connector width, null when it
+// is closer than the minimum gap, otherwise unchanged.
+function wallGapCheck(w, skipC = null) {
+  const g = A.g, st = S.settings, L = w.o === 'h' ? g.D : g.W;
+  const minGap = minConnGap(g, S.profile);
+  // drawer sides without frame/end pieces: only the arm has to clear the side (or the rail)
+  const sideGap = g.B > 0 ? minGap : S.profile.arm + (st.border === 'rail' ? g.railT : st.noneGap) + 1;
+  const cands = [[g.B, sideGap], [L - g.B, sideGap]];
+  for (const l of A.lines)
+    if (l.o === w.o && l.a < w.b + EPS && l.b > w.a - EPS && !(skipC !== null && near(l.c, skipC))) cands.push([l.c, minGap]);
+  let res = { c: w.c, minGap };
+  for (const [c, need] of cands.sort((a, b) => Math.abs(a[0] - w.c) - Math.abs(b[0] - w.c))) {
+    const dist = Math.abs(c - w.c);
+    if (dist < EPS || dist >= need) continue;
+    if (dist <= g.armW) return { c: r2(c), minGap };
+    res = { c: null, minGap: need };
+  }
+  return res;
+}
+
+// Would these walls leave a wall piece that cannot be printed or connected?
+// Runs the full analysis on the changed layout, so every rule of the system applies.
+const badPieces = St => analyze(St).conflicts;
+const breaksLayout = walls => badPieces({ ...S, walls }) > A.conflicts;
+const TOO_CLOSE = () => `Geht nicht – Verbinder würden sich überschneiden (mind. ${fmt(minConnGap(A.g, S.profile), 0)} mm Wandabstand).`;
 
 // ---------------------------------------------------------------------------
 // Rendering: SVG
@@ -552,7 +632,11 @@ function drawSVG() {
     out.push(`<rect class="rail" x="${r2(x)}" y="${r2(y)}" width="${r2(w)}" height="${r2(h)}"/>${teeth}`);
   }
 
-  // walls
+  // connectors
+  for (const n of A.nodes) if (n.kind === 'conn')
+    out.push(connSvg(n, g, p, 'conn' + (n.type.startsWith('slip') ? ' slip' : '') + (n.joint ? ' joint' : '') + (n.clash ? ' clash' : '')));
+
+  // walls – drawn over the connectors so the part that sits in the slot stays visible
   const hlLine = ui.tool === 'select' && ui.sel !== null ? S.walls[ui.sel] : null;
   for (const pc of A.pieces) {
     const t = g.t;
@@ -562,10 +646,6 @@ function drawSVG() {
     if (ui.eraseHL && ui.eraseHL.o === pc.o && near(ui.eraseHL.c, pc.c) && pc.s < ui.eraseHL.b && pc.e > ui.eraseHL.a) cls += ' erase';
     out.push(`<rect class="${cls}" x="${r2(x)}" y="${r2(y)}" width="${r2(Math.max(0.3, w))}" height="${r2(Math.max(0.3, h))}"/>`);
   }
-
-  // connectors
-  for (const n of A.nodes) if (n.kind === 'conn')
-    out.push(connSvg(n, g, p, 'conn' + (n.type.startsWith('slip') ? ' slip' : '') + (n.joint ? ' joint' : '')));
 
   // labels
   const fs = 11 / s;
@@ -581,8 +661,12 @@ function drawSVG() {
   }
   if (s > 1.4) for (const pc of A.pieces) {
     if (pc.len < 25) continue;
-    const m = (pc.s + pc.e) / 2, off = 7 / s;
-    const [x, y] = pc.o === 'h' ? [m, pc.c - off] : [pc.c - off, m];
+    // dimension line over the full printed length, ticks at the wall ends inside the connectors
+    const m = (pc.s + pc.e) / 2, tk = 4 / s, side = pc.c < (pc.o === 'h' ? D : W) / 2 ? 1 : -1, dc = pc.c + side * (g.t / 2 + 9 / s);
+    out.push(pc.o === 'h'
+      ? `<path class="dimline" d="M${r2(pc.s)},${r2(dc)}H${r2(pc.e)}M${r2(pc.s)},${r2(dc - tk)}V${r2(dc + tk)}M${r2(pc.e)},${r2(dc - tk)}V${r2(dc + tk)}"/>`
+      : `<path class="dimline" d="M${r2(dc)},${r2(pc.s)}V${r2(pc.e)}M${r2(dc - tk)},${r2(pc.s)}H${r2(dc + tk)}M${r2(dc - tk)},${r2(pc.e)}H${r2(dc + tk)}"/>`);
+    const [x, y] = pc.o === 'h' ? [m, dc] : [dc, m];
     out.push(`<text class="dim" x="${r2(x)}" y="${r2(y)}" ${pc.o === 'v' ? `transform="rotate(-90 ${r2(x)} ${r2(y)})"` : ''} style="font-size:${r2(10 / s)}px">${fmt(pc.len)}</text>`);
   }
 
@@ -599,8 +683,8 @@ function drawSVG() {
   }
   if (ui.tool === 'split' && ui.splitPreview)
     for (const w of ui.splitPreview)
-      out.push(w.o === 'v' ? `<line class="preview-split" x1="${w.c}" y1="${w.a}" x2="${w.c}" y2="${w.b}"/>`
-                           : `<line class="preview-split" x1="${w.a}" y1="${w.c}" x2="${w.b}" y2="${w.c}"/>`);
+      out.push(w.o === 'v' ? `<line class="preview-split${ui.splitBad ? ' bad' : ''}" x1="${w.c}" y1="${w.a}" x2="${w.c}" y2="${w.b}"/>`
+                           : `<line class="preview-split${ui.splitBad ? ' bad' : ''}" x1="${w.a}" y1="${w.c}" x2="${w.b}" y2="${w.c}"/>`);
   root.innerHTML = out.join('');
 }
 
@@ -682,7 +766,7 @@ function syncInputs() {
     if (el.type === 'checkbox') el.checked = !!v; else el.value = v;
   }
   for (const r of $$('input[name=border]')) r.checked = r.value === S.settings.border;
-  $('#presetSel').value = S.preset;
+  fillProfiles();
 }
 
 // Wall ends that sit on the drawer edge follow it when the edge moves
@@ -708,9 +792,35 @@ function remapEdges(g0) {
     return { o: w.o, c: cs[i], a: r2(end(w.a, g0.B, g1.B)), b: r2(end(w.b, L0 - g0.B, L1 - g1.B)) };
   });
 }
+// Changing the edge mode scales the inner walls with the usable width, so equal
+// compartments stay equal. Rail mode snaps walls into the tooth pitch; leaving it
+// without having edited anything restores the walls from before.
+const innerStart = (g, border) => border === 'frame' ? g.B + g.t / 2 : border === 'rail' ? g.railT : 0;
+function switchBorder(to) {
+  const from = S.settings.border;
+  let walls = S.walls, fromB = from;
+  if (from === 'rail' && S.railMemo && JSON.stringify(S.walls) === S.railMemo.snapped) { walls = JSON.parse(S.railMemo.walls); fromB = S.railMemo.border; }
+  delete S.railMemo;
+  const g0 = geom({ ...S, settings: { ...S.settings, border: fromB } });
+  S.settings.border = to;
+  const g1 = geom(S), s0 = innerStart(g0, fromB), s1 = innerStart(g1, to);
+  const map = (u, L) => Math.abs(u - g0.B) < 0.05 ? r2(g1.B) : Math.abs(u - (L - g0.B)) < 0.05 ? r2(L - g1.B)
+                      : r2(s1 + (u - s0) * (L - 2 * s1) / (L - 2 * s0));
+  const slots = to === 'rail' ? { x: railSlots('x', S, g1).slots, y: railSlots('y', S, g1).slots } : null;
+  const snap = (u, L, axis) => !slots || u <= g1.B + 0.05 || u >= L - g1.B - 0.05 ? u : nearestOf(slots[axis], u);
+  S.walls = walls.map(w => {
+    const Lc = w.o === 'h' ? g1.D : g1.W, La = w.o === 'h' ? g1.W : g1.D, axc = w.o === 'h' ? 'y' : 'x', axa = w.o === 'h' ? 'x' : 'y';
+    return { o: w.o, c: snap(map(w.c, Lc), Lc, axc), a: snap(map(w.a, La), La, axa), b: snap(map(w.b, La), La, axa) };
+  });
+  if (to === 'rail') S.railMemo = { border: fromB, walls: JSON.stringify(walls), snapped: JSON.stringify(S.walls) };
+}
+
 function setWithRemap(path, v) {
+  if (path === 'settings.border') { if (v !== S.settings.border) switchBorder(v); return; }
   const g0 = geom(S), wasRail = S.settings.border === 'rail';
   setPath(S, path, v);
+  if (path === 'profile.height') S.settings.autoH = false;   // typing a height means "manual"
+  syncAuto(S);
   const g1 = geom(S);
   if (g0.B !== g1.B || g0.W !== g1.W || g0.D !== g1.D || (!wasRail && S.settings.border === 'rail') || (S.settings.border === 'rail' && (g0.pitch !== g1.pitch || g0.railT !== g1.railT))) remapEdges(g0);
 }
@@ -723,20 +833,61 @@ for (const el of $$('[data-k]')) {
     let v = el.type === 'checkbox' ? el.checked : el.type === 'number' ? parseFloat(el.value) : el.value;
     if (el.type === 'number') { if (!isFinite(v)) return; if (el.min !== '' && v < +el.min) v = +el.min; }
     setWithRemap(el.dataset.k, v);
-    if (el.dataset.k.startsWith('profile.')) { S.preset = 'custom'; $('#presetSel').value = 'custom'; }
     if (el.dataset.k.startsWith('drawer.')) fit();
     commit(before); inputBefore = snapshot();
+    syncInputs();
   };
   el.addEventListener('change', apply);
-  if (el.type === 'number') el.addEventListener('input', () => { const v = parseFloat(el.value); if (isFinite(v)) { setWithRemap(el.dataset.k, v); render(); } });
+  if (el.type === 'number') el.addEventListener('input', () => {
+    const v = parseFloat(el.value);
+    if (!isFinite(v)) return;
+    setWithRemap(el.dataset.k, v);
+    $('[data-k="settings.autoH"]').checked = !!S.settings.autoH;
+    render();
+  });
 }
-$('#presetSel').addEventListener('change', e => mutate(() => {
-  S.preset = e.target.value;
-  const g0 = geom(S);
-  if (PRESETS[S.preset]) S.profile = { ...PRESETS[S.preset] };
-  remapEdges(g0);
+// Profiles: everything except drawer, edge mode and walls, kept in this browser
+function loadProfiles() { try { return JSON.parse(localStorage.getItem(PROFILES_KEY)) || {}; } catch { return {}; } }
+function storeProfiles(all) { try { localStorage.setItem(PROFILES_KEY, JSON.stringify(all)); } catch { flash('Profile können in diesem Browser nicht gespeichert werden.'); } }
+function fillProfiles() {
+  const all = loadProfiles(), names = Object.keys(all).sort((a, b) => a.localeCompare(b, 'de'));
+  $('#profSel').innerHTML = '<option value="">Standard</option>' + names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  $('#profSel').value = all[S.preset] ? S.preset : '';
+  $('#profDel').disabled = !all[S.preset];
+}
+function applyProfile(name, src) {
+  if (!src) { flash('Profil nicht gefunden.'); fillProfiles(); return; }
+  mutate(() => {
+    const g0 = geom(S), keep = Object.fromEntries(PER_DRAWER.map(k => [k, S.settings[k]]));
+    S.profile = { ...DEFAULT_PROFILE, ...src.profile };
+    S.settings = { ...defaultSettings(), ...src.settings, ...keep };
+    S.preset = name;
+    syncAuto(S);
+    remapEdges(g0);
+  });
   syncInputs();
-}));
+}
+$('#profSel').addEventListener('change', e => {
+  const name = e.target.value;
+  applyProfile(name, name ? loadProfiles()[name] : { profile: DEFAULT_PROFILE, settings: defaultSettings() });
+});
+$('#profReset').addEventListener('click', () => applyProfile('', { profile: DEFAULT_PROFILE, settings: defaultSettings() }));
+$('#profSave').addEventListener('click', async () => {
+  const name = await ask('Profil speichern', { text: 'Name für das Profil, z.B. dein Drucker:', input: S.preset || 'Mein Drucker', ok: 'Speichern' });
+  if (!name) return;
+  const all = loadProfiles(), settings = { ...S.settings };
+  for (const k of PER_DRAWER) delete settings[k];
+  all[name] = { profile: { ...S.profile }, settings };
+  storeProfiles(all);
+  S.preset = name; persist(); fillProfiles();
+  flash(`Profil „${name}“ gespeichert.`);
+});
+$('#profDel').addEventListener('click', async () => {
+  const all = loadProfiles();
+  if (!all[S.preset] || !await ask(`Profil „${S.preset}“ löschen?`, { ok: 'Löschen' })) return;
+  delete all[S.preset]; storeProfiles(all);
+  S.preset = ''; persist(); fillProfiles();
+});
 for (const r of $$('input[name=border]')) r.addEventListener('change', () => mutate(() => setWithRemap('settings.border', r.value)));
 $('#projName').addEventListener('change', e => mutate(() => { S.name = e.target.value.trim() || 'Schublade'; }));
 
@@ -824,6 +975,12 @@ function computeSplit(m) {
     const L = dir === 'v' ? g.D : g.W;
     return { o: dir, c, a: r2(clampEdge(a, L)), b: r2(clampEdge(b, L)) };
   }).filter(w => w.b - w.a > 1);
+  // line up with walls that end on the same wall from the other side, refuse what does not fit
+  let bad = false;
+  for (const w of ui.splitPreview) { const chk = wallGapCheck(w); if (chk.c === null) bad = true; else w.c = chk.c; }
+  const key = JSON.stringify(ui.splitPreview) + JSON.stringify(S.walls) + geom(S).inset;
+  if (ui.splitKey !== key) { ui.splitKey = key; ui.splitBadSim = ui.splitPreview.length > 0 && breaksLayout(S.walls.concat(ui.splitPreview)); }
+  ui.splitBad = bad || ui.splitBadSim;
 }
 
 svg.addEventListener('contextmenu', e => e.preventDefault());
@@ -848,7 +1005,10 @@ svg.addEventListener('pointerdown', e => {
     mutate(() => eraseInterval(iv));
   } else if (ui.tool === 'split') {
     computeSplit(m);
-    if (ui.splitPreview && ui.splitPreview.length) { const add = ui.splitPreview; mutate(() => S.walls.push(...add)); computeSplit(m); drawSVG(); }
+    if (ui.splitPreview && ui.splitPreview.length) {
+      if (ui.splitBad) { flash(TOO_CLOSE() + ' Weniger Fächer wählen.'); return; }
+      const add = ui.splitPreview; mutate(() => S.walls.push(...add)); computeSplit(m); drawSVG();
+    }
   }
 });
 svg.addEventListener('pointermove', e => {
@@ -878,9 +1038,17 @@ svg.addEventListener('pointerup', e => {
   if (d.type === 'draw' && d.p1) {
     const w = d.p0.y === d.p1.y ? { o: 'h', c: d.p0.y, a: Math.min(d.p0.x, d.p1.x), b: Math.max(d.p0.x, d.p1.x) }
                                 : { o: 'v', c: d.p0.x, a: Math.min(d.p0.y, d.p1.y), b: Math.max(d.p0.y, d.p1.y) };
-    if (w.b - w.a >= 2) mutate(() => S.walls.push(w)); else drawSVG();
-  } else if (d.type === 'move') commit(d.before);
-  else drawSVG();
+    const chk = w.b - w.a >= 2 ? wallGapCheck(w) : null;
+    if (chk && chk.c !== null && breaksLayout(S.walls.concat({ ...w, c: chk.c }))) { flash(TOO_CLOSE()); drawSVG(); }
+    else if (chk && chk.c !== null) mutate(() => S.walls.push({ ...w, c: chk.c }));
+    else { if (chk) flash(`Zu nah an der Nachbarwand oder am Rand – mindestens ${fmt(chk.minGap, 0)} mm Abstand, sonst passen die Verbinder nicht.`); drawSVG(); }
+  } else if (d.type === 'move') {
+    const w = S.walls[d.idx], chk = wallGapCheck({ o: w.o, c: w.c, a: Math.min(w.a, w.b), b: Math.max(w.a, w.b) }, w.c);
+    if (chk.c === null) { w.c = d.c0; flash(`Zu nah an der Nachbarwand oder am Rand – mindestens ${fmt(chk.minGap, 0)} mm Abstand.`); render(); }
+    else if (chk.c !== w.c) { w.c = chk.c; render(); }
+    if (w.c !== d.c0 && badPieces(S) > badPieces(JSON.parse(d.before))) { w.c = d.c0; flash(TOO_CLOSE()); render(); }
+    commit(d.before);
+  } else drawSVG();
 });
 svg.addEventListener('pointerleave', () => { ui.mouse = null; ui.eraseHL = null; ui.splitPreview = null; ui.splitRegion = null; showTip(null); if (!ui.drag) drawSVG(); });
 svg.addEventListener('wheel', e => {
@@ -913,7 +1081,7 @@ function flash(text) { $('#shint').textContent = text; clearTimeout(flashTimer);
 
 // keyboard
 window.addEventListener('keydown', e => {
-  if (e.target.matches('input, select, textarea')) return;
+  if (e.target.matches('input, select, textarea') || document.querySelector('dialog[open]')) return;
   const k = e.key.toLowerCase();
   if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if ((e.ctrlKey || e.metaKey) && k === 'y') { e.preventDefault(); redo(); return; }
@@ -931,11 +1099,34 @@ window.addEventListener('keyup', e => {
   if (e.key === 'Shift') { ui.shift = false; if (ui.mouse && ui.tool === 'split') { computeSplit(ui.mouse); drawSVG(); } }
 });
 
+// In-page replacement for confirm()/prompt(), which some browsers and embedded views block.
+// Resolves to true / the entered text, or null when cancelled.
+function ask(title, { text = '', input = null, ok = 'OK' } = {}) {
+  const dlg = $('#askDlg');
+  $('#askTitle').textContent = title;
+  $('#askText').textContent = text; $('#askText').hidden = !text;
+  $('#askField').hidden = input === null;
+  $('#askInput').value = input ?? '';
+  $('#askOk').textContent = ok;
+  dlg.returnValue = '';
+  dlg.showModal();
+  if (input !== null) { $('#askInput').focus(); $('#askInput').select(); }
+  return new Promise(resolve => dlg.addEventListener('close', () => {
+    resolve(dlg.returnValue !== 'ok' ? null : input === null ? true : $('#askInput').value.trim() || null);
+  }, { once: true }));
+}
+$('#askOk').addEventListener('click', e => { e.preventDefault(); $('#askDlg').close('ok'); });
+$('#askNo').addEventListener('click', e => { e.preventDefault(); $('#askDlg').close(''); });
+$('#askInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('#askDlg').close('ok'); } });
+
 // toolbar buttons
 $('#btnUndo').addEventListener('click', undo);
 $('#btnRedo').addEventListener('click', redo);
 $('#btnFit').addEventListener('click', fit);
-$('#btnClear').addEventListener('click', () => { if (S.walls.length && confirm('Alle Wände löschen?')) mutate(() => { S.walls = []; ui.sel = null; }); });
+$('#btnClear').addEventListener('click', async () => {
+  if (S.walls.length && await ask('Alle Wände löschen?', { text: 'Mit Strg+Z kannst du das rückgängig machen.', ok: 'Löschen' }))
+    mutate(() => { S.walls = []; ui.sel = null; });
+});
 const gridDlg = $('#gridDlg');
 $('#btnGrid').addEventListener('click', () => gridDlg.showModal());
 $('#gCancel').addEventListener('click', e => { e.preventDefault(); gridDlg.close(); });
@@ -947,8 +1138,8 @@ $('#gOk').addEventListener('click', e => {
 });
 
 // header buttons
-$('#btnNew').addEventListener('click', () => {
-  if (!confirm('Neues Projekt beginnen? Ungespeicherte Änderungen gehen verloren.')) return;
+$('#btnNew').addEventListener('click', async () => {
+  if (!await ask('Neues Projekt beginnen?', { text: 'Alle Wände werden entfernt. Schublade und Einstellungen bleiben.', ok: 'Neu beginnen' })) return;
   mutate(() => { const keep = { drawer: S.drawer, profile: S.profile, preset: S.preset, settings: S.settings }; S = { ...defaultState(), ...JSON.parse(JSON.stringify(keep)) }; });
   syncInputs(); fit();
 });
@@ -957,7 +1148,7 @@ $('#btnOpen').addEventListener('click', () => $('#fileIn').click());
 $('#fileIn').addEventListener('change', async e => {
   const f = e.target.files[0]; if (!f) return;
   try { const o = migrate(JSON.parse(await f.text())); mutate(() => { S = o; }); syncInputs(); fit(); render(); }
-  catch (err) { alert('Datei konnte nicht gelesen werden: ' + err.message); }
+  catch (err) { ask('Datei konnte nicht gelesen werden', { text: err.message }); }
   e.target.value = '';
 });
 const exportMenu = $('#exportMenu');
@@ -992,7 +1183,10 @@ function bomCsv() {
   return '﻿' + rows.map(r => r.map(v => /[;"\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(';')).join('\r\n');
 }
 
-function jobScad() {
+function jobScad() { return buildJob().scad; }
+
+// The print job: one .scad with the library embedded and one PART per bed-sized plate.
+function buildJob() {
   const b = A.bom, g = A.g, p = S.profile, st = S.settings;
   const bed = st.bed - 10, gap = 5;
   const num = v => r2(v).toString();
@@ -1041,7 +1235,7 @@ function jobScad() {
   L.push('//');
   L.push('// So exportierst du die STLs:');
   L.push('//   In OpenSCAD: rechts im Customizer "Teil" wählen, F6 (Rendern), F7 (STL exportieren).');
-  L.push('//   Automatisch: python tools/render_job.py <diese Datei>');
+  L.push('//   Oder direkt im Designer: "STLs erzeugen" rechnet alle Platten im Browser.');
   L.push('');
   L.push('/* [Export] */');
   L.push('// Welche Druckplatte? (0 = Übersicht aller Teile)');
@@ -1072,7 +1266,7 @@ function jobScad() {
     L.push('// Bibliothek nicht eingebettet – lege diese Datei neben drawer_divider.scad:');
     L.push('use <drawer_divider.scad>');
   }
-  return L.join('\n') + '\n';
+  return { scad: L.join('\n') + '\n', plates: plates.map((pl, i) => ({ num: i + 1, label: pl.label })) };
 }
 
 // ---------------------------------------------------------------------------

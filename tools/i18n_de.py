@@ -1,6 +1,7 @@
 """German Customizer names for the MakerWorld build (used by build.py)."""
 
 FILES = {
+    "drawer_designer.scad": "schubladen_designer.scad",
     "connector.scad": "verbinder.scad",
     "wall.scad": "wand.scad",
     "rail.scad": "raster_schiene.scad",
@@ -17,6 +18,11 @@ SECTIONS = {
     "Joints": "Verbindung der Schienen",
     "Screws": "Schrauben",
     "Test": "Test",
+    "Drawer": "Schublade",
+    "Compartments": "Fächer",
+    "Drawer Edge": "Am Schubladenrand",
+    "Output": "Ausgabe",
+    "Rails": "Raster-Schienen",
 }
 
 # English variable -> (German variable, German description)
@@ -24,7 +30,6 @@ VARS = {
     "Type": ("Verbinder_Typ", "Art des Verbinders"),
     "Count": ("Anzahl", "Wie viele Teile auf dem Druckbett"),
     "Spacing": ("Abstand", "Abstand zwischen den Teilen (mm)"),
-    "Preset": ("Vorlage", "Mit einer Vorlage starten oder die Werte unten verwenden"),
     "Wall_Thickness": ("Wand_Dicke", "Exakte Dicke deiner gedruckten Trennwände (mm)"),
     "Tolerance": ("Toleranz", "Extra-Platz im Schlitz, damit die Wand nicht klemmt (mm, 0.2 passt meistens)"),
     "Height": ("Hoehe", "Höhe der Verbinder (mm)"),
@@ -33,7 +38,7 @@ VARS = {
     "Arm_Length": ("Arm_Laenge", "Armlänge, gemessen aus der Mitte (mm)"),
     "Inner_Fillet": ("Innere_Rundung", "Innenradius zwischen zwei Armen (mm)"),
     "Edge_Radius": ("Kanten_Radius", "Rundung der Außenkanten (mm)"),
-    "Cap_Thickness": ("Deckel_Dicke", "Geschlossener Deckel wie bei V1 (mm, 0 = beidseitig offen)"),
+    "Cap_Thickness": ("Deckel_Dicke", "Geschlossener Deckel (mm, 0 = beidseitig offen)"),
     "Floor_Thickness": ("Boden_Dicke", "Bodendicke der Aufsteck-Verbinder (mm)"),
     "Lead_In": ("Einfuehrhilfe", "Fase an der Schlitzöffnung zum leichteren Einstecken (mm)"),
     "End_Gap": ("Spiel_Wandende", "Luft zwischen Wandende und Taschenboden (mm)"),
@@ -76,14 +81,40 @@ VARS = {
     "Slots": ("Schlitze", "Anzahl Schlitze"),
     "Test_Height": ("Test_Hoehe", "Höhe des Testblocks (mm)"),
     "Test_Wall": ("Test_Wand", "Auch eine kurze Testwand drucken"),
+    "Drawer_Width": ("Schublade_Breite", "Innenbreite der Schublade, links nach rechts (mm)"),
+    "Drawer_Depth": ("Schublade_Tiefe", "Innentiefe der Schublade, vorne nach hinten (mm)"),
+    "Drawer_Height": ("Schublade_Hoehe", "Innenhöhe der Schublade (mm)"),
+    "Direction": ("Richtung", "Welche Wände laufen von Rand zu Rand durch"),
+    "Strips": ("Streifen", "Relative Breite jedes Streifens, z.B. \"1,1,2\" = der dritte ist doppelt so breit"),
+    "Splits": ("Faecher", "Fächer pro Streifen: Zahl = gleich große Fächer, \"1:2\" = relative Größen. Ein Eintrag pro Streifen, der letzte wiederholt sich."),
+    "Edge": ("Rand", "Wie das System an der Schubladenwand endet"),
+    "Slip_On": ("Aufsteck_Verbinder", "Aufsteck-Verbinder: lange Wände laufen durch, Verbinder werden von oben aufgesteckt"),
+    "Max_Wall_Length": ("Max_Wandlaenge", "Längere Wände werden mit geraden Verbindern geteilt (mm)"),
+    "Edge_Gap": ("Abstand_Rand", "Luft zwischen Rahmen / Endstück und Schubladenwand (mm)"),
+    "Clamp_Gap": ("Spiel_Klemmen", "Luft zwischen Wandende und Schubladenwand beim direkten Klemmen (mm)"),
+    "Show": ("Anzeige", "Was angezeigt wird"),
+    "Part_Number": ("Teil_Nummer", "Zeilennummer aus der Stückliste (nur für \"Eine Zeile\")"),
+    "Bed_Size": ("Druckbett", "Nutzbare Größe deines Druckbetts (mm)"),
+    "Wall_Orientation": ("Wand_Ausrichtung", "Wie die Wände auf dem Druckbett liegen"),
+    "Wall_Pattern": ("Wand_Muster", "Muster zur Materialersparnis in den Wänden"),
+    "Language": ("Sprache", "Sprache der Beschriftung in der Vorschau"),
+    "Rail_Plate": ("Schienen_Platte", "Dicke der Schienen-Grundplatte (mm)"),
 }
 
-# dropdown value -> German label
+# English variable -> default value in the German build
+DEFAULTS = {"Language": '"de"'}
+
+# dropdown value -> German label ("Variable.value" overrides a plain value)
 LABELS = {
     "cross": "Kreuz (+)", "tee": "T-Stück", "corner": "Ecke (L)", "straight": "Gerade (Verlängerung)",
     "end": "Endstück", "slip_cross": "Aufsteck-Kreuz", "slip_tee": "Aufsteck-T-Stück",
     "slip_corner_r": "Aufsteck-Ecke rechts", "slip_corner_l": "Aufsteck-Ecke links",
-    "custom": "Eigene Werte (unten)", "v2": "V2 Standard", "v1": "V1 Classic (4.9 mm Wände mit Deckel)",
     "standing": "Stehend", "flat": "Liegend",
     "none": "Keins", "hex": "Waben", "circle": "Kreise",
+    "front_back": "Streifen laufen von vorne nach hinten", "left_right": "Streifen laufen von links nach rechts",
+    "frame": "Rahmen – steht für sich", "endcap": "Endstücke an der Schubladenwand",
+    "rail": "Raster-Schienen an den Seiten", "Edge.none": "Wände direkt klemmen",
+    "assembly": "Zusammenbau mit Stückliste", "parts": "Alle Druckteile", "connectors": "Nur Verbinder",
+    "walls": "Nur Wände", "rails": "Nur Schienen", "single": "Eine Zeile der Stückliste (Teil_Nummer)",
+    "en": "English", "de": "Deutsch",
 }

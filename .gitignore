@@ -1,5 +1,3 @@
-*_stl/
-*.stl
-!legacy/**/*.stl
 __pycache__/
+*.stl
 .claude/

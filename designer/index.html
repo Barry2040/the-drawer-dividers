@@ -62,7 +62,7 @@ aside.right { border-left: 1px solid var(--line); }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .field { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
 .field > span { font-size: 11.5px; color: var(--muted); }
-.field input[type=number], .field select { width: 100%; padding: 5px 7px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--panel-2); }
+.field input[type=number], .field input[type=text], .field select { width: 100%; padding: 5px 7px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--panel-2); }
 .field input:focus, .field select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .unit { position: relative; }
 .unit input { padding-right: 30px !important; }
@@ -77,6 +77,11 @@ details[open] summary { margin-bottom: 8px; }
 .opt b { font-weight: 600; display: block; }
 .opt small { color: var(--muted); }
 .opt:has(input:checked) { border-color: var(--accent); background: var(--accent-2); }
+[hidden] { display: none !important; }
+.prof-row { display: flex; gap: 6px; }
+.prof-row select { flex: 1; min-width: 0; padding: 5px 7px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--panel-2); }
+h4.sub { margin: 6px 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); font-weight: 650; }
+.field input:disabled { opacity: .6; }
 .check { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0; cursor: pointer; }
 .check input { accent-color: var(--accent); margin-top: 2px; }
 .check small { display: block; color: var(--muted); }
@@ -120,12 +125,15 @@ details[open] summary { margin-bottom: 8px; }
 .conn { fill: var(--conn); stroke: rgba(0,0,0,.25); stroke-width: .6; vector-effect: non-scaling-stroke; }
 .conn.slip { fill: var(--conn-slip); }
 .conn.joint { fill: var(--joint); }
+.conn.clash { fill: var(--err); }
 .slot { fill: rgba(0,0,0,.45); }
 .rail { fill: var(--rail); }
 .tooth { fill: var(--rail); opacity: .55; }
 .dim { font-size: 11px; fill: var(--muted); text-anchor: middle; dominant-baseline: middle; pointer-events: none; font-variant-numeric: tabular-nums; paint-order: stroke; stroke: var(--drawer); stroke-width: 3px; }
+.dimline { fill: none; stroke: var(--text); stroke-width: 1; vector-effect: non-scaling-stroke; opacity: .55; pointer-events: none; }
 .preview { stroke: var(--sel); stroke-width: 3; stroke-linecap: round; vector-effect: non-scaling-stroke; opacity: .8; }
 .preview-split { stroke: var(--accent); stroke-width: 2.5; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; }
+.preview-split.bad { stroke: var(--err); }
 .cursor-dot { fill: var(--sel); }
 .edge-label { font-size: 11px; fill: var(--muted); text-anchor: middle; letter-spacing: 1px; text-transform: uppercase; }
 .region-hl { fill: var(--accent); opacity: .08; }
@@ -160,6 +168,17 @@ details[open] summary { margin-bottom: 8px; }
 dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--text); padding: 18px 20px; box-shadow: var(--shadow); width: 340px; }
 dialog::backdrop { background: rgba(0,0,0,.3); }
 dialog h3 { margin: 0 0 12px; font-size: 15px; }
+#stlDlg { width: 520px; max-width: calc(100vw - 32px); }
+#stlList { max-height: 50vh; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+.stl-row { display: grid; grid-template-columns: 18px 1fr auto auto; gap: 10px; align-items: center; padding: 6px 10px; border-top: 1px solid var(--line); font-size: 13px; }
+.stl-row:first-child { border-top: 0; }
+.stl-row .stl-info { color: var(--muted); font-size: 12px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stl-row .btn { padding: 3px 8px; font-size: 12px; }
+.stl-row.run .stl-state { color: var(--accent); }
+.stl-row.ok .stl-state { color: var(--ok); }
+.stl-row.err .stl-state, .stl-row.err .stl-info { color: var(--err); }
+.stl-progress { height: 6px; border-radius: 3px; background: var(--grid); margin: 12px 0 6px; overflow: hidden; }
+#stlBar { height: 100%; width: 0; background: var(--accent); transition: width .3s; }
 dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 
 @media (max-width: 1400px) { .tool span, .tool kbd { display: none; } }
@@ -197,8 +216,9 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
   <button class="btn" id="btnNew" title="Neues Projekt">Neu</button>
   <button class="btn" id="btnOpen" title="Projekt öffnen (.json)">Öffnen</button>
   <button class="btn" id="btnSave" title="Projekt speichern (.json)">Speichern</button>
+  <button class="btn primary" id="btnStl" title="Alle Druckplatten mit OpenSCAD im Browser rechnen">STLs erzeugen</button>
   <div class="menu" id="exportMenu">
-    <button class="btn primary" id="btnExport">Export
+    <button class="btn" id="btnExport">Export
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
     <div class="menu-pop">
       <button data-export="scad"><b>OpenSCAD-Druckjob</b><small>Alle Teile in einer .scad – Teil wählen, STL exportieren</small></button>
@@ -221,21 +241,56 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
     </div>
 
     <div class="sec">
-      <h3>System</h3>
-      <label class="field"><span>Profil</span>
-        <select id="presetSel">
-          <option value="v2">V2 – 2 mm Wände, offen</option>
-          <option value="v1">V1 Classic – 4,9 mm Wände, mit Deckel</option>
-          <option value="custom">Eigene Werte</option>
-        </select>
-      </label>
+      <h3>Am Schubladenrand</h3>
+      <div class="seg" id="borderSeg">
+        <label class="opt"><input type="radio" name="border" value="frame"><div><b>Rahmen</b><small>Außenwände mit Ecken und T-Stücken – steht stabil für sich</small></div></label>
+        <label class="opt"><input type="radio" name="border" value="endcap"><div><b>Endstücke</b><small>Wände enden mit einem Endstück an der Schubladenwand</small></div></label>
+        <label class="opt"><input type="radio" name="border" value="rail"><div><b>Raster-Schienen</b><small>Zahnschienen an den Seiten, Wände rasten im Raster ein</small></div></label>
+        <label class="opt"><input type="radio" name="border" value="none"><div><b>Direkt klemmen</b><small>Wände laufen bis zur Schubladenwand, kein Teil am Rand</small></div></label>
+      </div>
+      <label class="check"><input type="checkbox" data-k="settings.slip"><span>Aufsteck-Verbinder<small>Lange Wände laufen durch, Verbinder werden von oben aufgesteckt</small></span></label>
+    </div>
+
+    <div class="sec">
+      <h3>Trenner</h3>
       <div class="row">
         <label class="field"><span>Wanddicke</span><div class="unit" data-u="mm"><input type="number" data-k="profile.wall_t" step="0.1" min="0.8"></div></label>
         <label class="field"><span>Toleranz</span><div class="unit" data-u="mm"><input type="number" data-k="profile.tol" step="0.05" min="0"></div></label>
         <label class="field"><span>Höhe</span><div class="unit" data-u="mm"><input type="number" data-k="profile.height" step="1" min="10"></div></label>
       </div>
+      <label class="check"><input type="checkbox" data-k="settings.autoH"><span>Höhe automatisch<small>Schubladenhöhe minus 5 mm Luft – eine eigene Höhe eintippen schaltet das ab</small></span></label>
+      <div class="row2">
+        <label class="field"><span>Wand-Muster</span>
+          <select data-k="settings.pattern"><option value="none">Keins</option><option value="hex">Waben</option><option value="circle">Kreise</option></select></label>
+        <label class="field"><span>Material</span>
+          <select data-k="settings.density"><option value="1.24">PLA</option><option value="1.27">PETG</option><option value="1.04">ABS</option><option value="1.07">ASA</option></select></label>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h3>Mein Profil</h3>
+      <div class="prof-row">
+        <select id="profSel" title="Gespeicherte Einstellungen laden"></select>
+        <button class="btn" id="profSave" title="Aktuelle Einstellungen als Profil speichern">Speichern</button>
+        <button class="btn" id="profDel" title="Profil löschen">Löschen</button>
+      </div>
+      <p class="hint">Speichert alle Einstellungen außer Schublade, Rand und Fächern – z.B. Toleranz und Druckbett deines Druckers.</p>
+    </div>
+
+    <div class="sec">
       <details>
-        <summary>Verbinder-Details</summary>
+        <summary>Erweitert</summary>
+        <div class="row2">
+          <label class="field"><span>Druckbett</span><div class="unit" data-u="mm"><input type="number" data-k="settings.bed" step="1" min="100"></div></label>
+          <label class="field"><span>Max. Wandlänge</span><div class="unit" data-u="mm"><input type="number" data-k="settings.maxLen" step="5" min="40"></div></label>
+          <label class="field"><span>Ausrichtung</span>
+            <select data-k="settings.orient"><option value="standing">Stehend</option><option value="flat">Liegend</option></select></label>
+          <label class="field"><span>Griffmulde</span><div class="unit" data-u="mm"><input type="number" data-k="settings.grip" step="1" min="0"></div></label>
+          <label class="field"><span>Raster (Fang)</span><div class="unit" data-u="mm"><input type="number" data-k="settings.grid" step="1" min="1"></div></label>
+          <label class="field"><span>Abstand Rand</span><div class="unit" data-u="mm"><input type="number" data-k="settings.borderGap" step="0.1" min="0"></div></label>
+        </div>
+        <p class="hint" style="margin:0 0 10px">Längere Wände werden automatisch mit geraden Verbindern geteilt.</p>
+        <h4 class="sub">Verbinder</h4>
         <div class="row2">
           <label class="field"><span>Einschubtiefe</span><div class="unit" data-u="mm"><input type="number" data-k="profile.insert" step="1"></div></label>
           <label class="field"><span>Armlänge</span><div class="unit" data-u="mm"><input type="number" data-k="profile.arm" step="1"></div></label>
@@ -250,49 +305,13 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
           <label class="field"><span>Spiel Wandende</span><div class="unit" data-u="mm"><input type="number" data-k="profile.end_gap" step="0.1"></div></label>
           <label class="field"><span>Spiel oben</span><div class="unit" data-u="mm"><input type="number" data-k="profile.top_gap" step="0.05"></div></label>
         </div>
-      </details>
-    </div>
-
-    <div class="sec">
-      <h3>Am Schubladenrand</h3>
-      <div class="seg" id="borderSeg">
-        <label class="opt"><input type="radio" name="border" value="frame"><div><b>Rahmen</b><small>Außenwände mit Ecken und T-Stücken – steht stabil für sich</small></div></label>
-        <label class="opt"><input type="radio" name="border" value="endcap"><div><b>Endstücke</b><small>Wände enden mit einem Endstück an der Schubladenwand</small></div></label>
-        <label class="opt"><input type="radio" name="border" value="rail"><div><b>Raster-Schienen</b><small>Zahnschienen an den Seiten, Wände rasten im Raster ein</small></div></label>
-        <label class="opt"><input type="radio" name="border" value="none"><div><b>Direkt klemmen</b><small>Wände laufen bis zur Schubladenwand, kein Teil am Rand</small></div></label>
-      </div>
-    </div>
-
-    <div class="sec">
-      <h3>Optionen</h3>
-      <label class="check"><input type="checkbox" data-k="settings.slip"><span>Aufsteck-Verbinder<small>Lange Wände laufen durch, Verbinder werden von oben aufgesteckt – weniger, längere Wände</small></span></label>
-      <div class="row2">
-        <label class="field"><span>Max. Wandlänge</span><div class="unit" data-u="mm"><input type="number" data-k="settings.maxLen" step="5" min="40"></div></label>
-        <label class="field"><span>Raster (Fang)</span><div class="unit" data-u="mm"><input type="number" data-k="settings.grid" step="1" min="1"></div></label>
-        <label class="field"><span>Druckbett</span><div class="unit" data-u="mm"><input type="number" data-k="settings.bed" step="1" min="100"></div></label>
-        <label class="field"><span>Abstand Rand</span><div class="unit" data-u="mm"><input type="number" data-k="settings.borderGap" step="0.1" min="0"></div></label>
-      </div>
-      <p class="hint">Längere Wände werden automatisch mit geraden Verbindern geteilt.</p>
-    </div>
-
-    <div class="sec">
-      <h3>Druck</h3>
-      <div class="row2">
-        <label class="field"><span>Wand-Muster</span>
-          <select data-k="settings.pattern"><option value="none">Keins</option><option value="hex">Waben</option><option value="circle">Kreise</option></select></label>
-        <label class="field"><span>Ausrichtung</span>
-          <select data-k="settings.orient"><option value="standing">Stehend</option><option value="flat">Liegend</option></select></label>
-        <label class="field"><span>Griffmulde</span><div class="unit" data-u="mm"><input type="number" data-k="settings.grip" step="1" min="0"></div></label>
-        <label class="field"><span>Material</span>
-          <select data-k="settings.density"><option value="1.24">PLA</option><option value="1.27">PETG</option><option value="1.04">ABS</option><option value="1.07">ASA</option></select></label>
-      </div>
-      <details>
-        <summary>Raster-Schiene</summary>
+        <h4 class="sub">Raster-Schiene</h4>
         <div class="row">
           <label class="field"><span>Platte</span><div class="unit" data-u="mm"><input type="number" data-k="settings.railPlate" step="0.1"></div></label>
           <label class="field"><span>Zahn</span><div class="unit" data-u="mm"><input type="number" data-k="settings.toothT" step="0.1"></div></label>
           <label class="field"><span>Zahnhöhe</span><div class="unit" data-u="mm"><input type="number" data-k="settings.toothH" step="0.1"></div></label>
         </div>
+        <button class="btn" id="profReset" style="width:100%;margin-top:4px">Alles auf Standard zurücksetzen</button>
       </details>
     </div>
   </aside>
@@ -368,7 +387,24 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
   <div class="actions"><button class="btn" value="cancel" id="gCancel">Abbrechen</button><button class="btn primary" id="gOk">Anwenden</button></div>
 </dialog>
 
+<dialog id="stlDlg">
+  <h3>STL-Dateien erzeugen</h3>
+  <p class="hint" style="margin:0 0 12px">OpenSCAD rechnet jede Druckplatte direkt im Browser aus der SCAD-Bibliothek. Beim ersten Mal wird OpenSCAD geladen (ca. 11 MB, Internet nötig).</p>
+  <div id="stlList"></div>
+  <div class="stl-progress"><div id="stlBar"></div></div>
+  <div class="hint" id="stlStatus"></div>
+  <div class="actions"><button class="btn" id="stlClose">Schließen</button><button class="btn primary" id="stlZip" disabled>ZIP herunterladen</button></div>
+</dialog>
+
+<dialog id="askDlg">
+  <h3 id="askTitle"></h3>
+  <p class="hint" id="askText" style="margin:0 0 10px"></p>
+  <label class="field" id="askField"><input type="text" id="askInput" maxlength="60"></label>
+  <div class="actions"><button class="btn" id="askNo">Abbrechen</button><button class="btn primary" id="askOk">OK</button></div>
+</dialog>
+
 <script src="scad_lib.js"></script>
 <script src="app.js"></script>
+<script src="stl.js"></script>
 </body>
 </html>
