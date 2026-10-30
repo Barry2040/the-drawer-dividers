@@ -15,7 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SCAD = ROOT / "scad"
 LIB = SCAD / "lib" / "drawer_divider.scad"
-ENTRIES = ["drawer_designer.scad", "connector.scad", "wall.scad", "rail.scad", "tolerance_test.scad"]
+ENTRIES = ["drawer_designer.scad", "connector.scad", "wall.scad", "rail.scad", "label_clip.scad", "tolerance_test.scad"]
 
 from i18n_de import FILES as DE_FILES, SECTIONS as DE_SECTIONS, VARS as DE_VARS, LABELS as DE_LABELS, DEFAULTS as DE_DEFAULTS  # noqa: E402
 

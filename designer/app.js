@@ -25,6 +25,7 @@ const TYPES = {
   cross:      { name: 'Kreuz', desc: '4 Wände treffen sich' },
   tee:        { name: 'T-Stück', desc: '3 Wände' },
   corner:     { name: 'Ecke', desc: '2 Wände im 90°-Winkel' },
+  corner_round: { name: 'Rahmenecke gerundet', desc: 'Außen gerundet für die Schubladenecke' },
   straight:   { name: 'Gerade', desc: 'Verlängert eine geteilte Wand' },
   end:        { name: 'Endstück', desc: 'Freies Wandende / am Rand' },
   slip_cross: { name: 'Aufsteck-Kreuz durchgehend', desc: 'Auf durchgehende Wand gesteckt' },
@@ -39,11 +40,11 @@ const TYPE_ORDER = Object.keys(TYPES);
 
 function defaultSettings() {
   return { border: 'frame', slip: false, autoH: true, maxLen: 240, grid: 5, bed: 256, borderGap: 0.5, noneGap: 1,
-           pattern: 'hex', orient: 'standing', grip: 0, density: '1.24',
+           pattern: 'hex', orient: 'standing', grip: 0, density: '1.24', labels: true, clips: false,
            railPlate: 2.5, toothT: 2, toothH: 6 };
 }
 function defaultState() {
-  return { version: 3, name: 'Meine Schublade', drawer: { w: 400, d: 300, h: 60 },
+  return { version: 3, name: 'Meine Schublade', drawer: { w: 400, d: 300, h: 60, r: 0 },
            preset: '', profile: { ...DEFAULT_PROFILE }, settings: defaultSettings(), walls: [] };
 }
 
@@ -67,7 +68,12 @@ function geom(S) {
   const wallH = p.height - (cap > 0 ? cap + p.top_gap : 0);
   const railT = s.railPlate + s.toothH;
   const B = (s.border === 'frame' || s.border === 'endcap') ? armW / 2 + s.borderGap : 0;
-  return { slotW, armW, pocket, inset: pocket + p.end_gap, wallH, railT, B, t: p.wall_t,
+  // frame corners follow a rounded drawer corner, as far as the slots allow (dd_corner_r_max)
+  const ca = armW / 2, dx = pocket + ca, dy = ca - slotW / 2 - 0.8;
+  const cornerMax = dy <= 0 ? dx : dx + dy + Math.sqrt(2 * dx * dy);
+  const cornerWant = s.border === 'frame' && S.drawer.r > 0 ? S.drawer.r - s.borderGap : 0;
+  const cornerR = Math.max(0, Math.min(cornerWant, cornerMax));
+  return { slotW, armW, pocket, inset: pocket + p.end_gap, wallH, railT, B, t: p.wall_t, cornerR, cornerMax, cornerWant,
            pitch: s.toothT + slotW, W: S.drawer.w, D: S.drawer.d };
 }
 
@@ -170,6 +176,7 @@ function analyze(S) {
       n.type = cnt === 4 ? 'slip_cross' : 'slip_tee';
     }
     if (n.type === 'straight') n.through = null;
+    if (n.type === 'corner' && g.cornerR > 0 && (near(n.x, B) || near(n.x, W - B)) && (near(n.y, B) || near(n.y, D - B))) n.type = 'corner_round';
   }
 
   // wall pieces: cut each line at nodes that don't let it pass through
@@ -295,9 +302,10 @@ function analyze(S) {
   else if (p.height > S.drawer.h - 3) msgs.push({ lvl: 'warn', text: `Nur ${fmt(S.drawer.h - p.height)} mm Luft über den Trennern – die Schublade könnte hängen bleiben.` });
   const longest = Math.max(0, ...pieces.map(x => x.len), ...rails.map(r => r.len));
   if (S.settings.orient === 'flat' && longest > st.bed - 10) msgs.push({ lvl: 'warn', text: `Längstes Teil (${fmt(longest, 0)} mm) passt kaum aufs ${fmt(st.bed, 0)}-mm-Druckbett.` });
+  if (g.cornerWant > g.cornerMax + EPS) msgs.push({ lvl: 'warn', text: `Eckradius zu groß: Die Rahmenecken lassen sich nur bis ${fmt(g.cornerMax)} mm runden, sonst würden die Schlitze angeschnitten. Mehr Abstand zum Rand oder Endstücke helfen.` });
   if (st.slip && p.cap === 0) msgs.push({ lvl: 'info', text: `Aufsteck-Modus: Alle Wände sind ${fmt(p.floor_t)} mm niedriger, damit die Aufsteck-Verbinder bündig sitzen.` });
 
-  const bom = buildBom(S, g, nodes, pieces, rails);
+  const bom = buildBom(S, g, nodes, pieces, rails, comps.list.length);
   const conflicts = pieces.filter(pc => pc.bad).length + collisions;
   return { g, H, V, lines, nodes: [...nodes.values()], pieces, rails, comps, bom, msgs, conflicts };
 }
@@ -356,7 +364,8 @@ function findCompartments(S, g, H0, V0) {
 // Connector outline (used for SVG, 3D and volume)
 // ---------------------------------------------------------------------------
 // slotted = true cuts the open wall slots into the arm ends (3D view of normal connectors)
-function connOutline(arms, g, p, segs = 8, slotted = false) {
+// cornerR rounds the outer corners between two missing arms (frame corners in rounded drawers)
+function connOutline(arms, g, p, segs = 8, slotted = false, cornerR = 0) {
   const a = g.armW / 2, L = p.arm, r = Math.max(0, Math.min(p.fillet, L - a));
   const rot = (i, x, y) => [[x, y], [-y, x], [-x, -y], [y, -x]][i];
   const ps = L - p.insert, h = g.slotW / 2;
@@ -370,7 +379,12 @@ function connOutline(arms, g, p, segs = 8, slotted = false) {
         const t = -Math.PI / 2 - (Math.PI / 2) * k / segs;
         pts.push(rot(i, a + r + r * Math.cos(t), a + r + r * Math.sin(t)));
       }
-    } else pts.push(rot(i, a, a));
+    } else if (!arms[i] && !arms[j] && cornerR > 0) {
+      for (let k = 0; k <= segs; k++) {
+        const t = (Math.PI / 2) * k / segs;
+        pts.push(rot(i, a - cornerR + cornerR * Math.cos(t), a - cornerR + cornerR * Math.sin(t)));
+      }
+    } else if (arms[i] && arms[j] || !arms[i] && !arms[j]) pts.push(rot(i, a, a));   // others lie on a straight side
   }
   return pts;
 }
@@ -378,7 +392,7 @@ const polyArea = pts => Math.abs(pts.reduce((s, [x, y], i) => { const [x2, y2] =
 
 function connArms(type, n) {
   if (n && n.dirs) return n.dirs;
-  return { cross: [1, 1, 1, 1], tee: [1, 1, 1, 0], corner: [1, 1, 0, 0], straight: [1, 0, 1, 0], end: [1, 0, 0, 0],
+  return { cross: [1, 1, 1, 1], tee: [1, 1, 1, 0], corner: [1, 1, 0, 0], corner_round: [1, 1, 0, 0], straight: [1, 0, 1, 0], end: [1, 0, 0, 0],
            slip_cross: [1, 1, 1, 1], slip_tee: [1, 1, 1, 0] }[type];
 }
 
@@ -416,7 +430,8 @@ function wallHoleFraction(len, h, S) {
   return Math.min(0.6, pts.length * holeA / (len * h));
 }
 
-function buildBom(S, g, nodes, pieces, rails) {
+const wallLetter = i => i < 26 ? String.fromCharCode(65 + i) : String.fromCharCode(64 + Math.floor(i / 26)) + String.fromCharCode(65 + i % 26);
+function buildBom(S, g, nodes, pieces, rails, clipCount = 0) {
   const p = S.profile, dens = parseFloat(S.settings.density) / 1000;
   const conns = new Map(), walls = new Map(), railMap = new Map();
   for (const n of nodes.values()) if (n.kind === 'conn') conns.set(n.type, (conns.get(n.type) || 0) + 1);
@@ -430,15 +445,25 @@ function buildBom(S, g, nodes, pieces, rails) {
     if (!railMap.has(k)) railMap.set(k, { ...r, qty: 0 });
     railMap.get(k).qty++;
   }
+  // walls are lettered A, B, C … longest first; the same letter is engraved and shown in the plan
+  const wallList = [...walls.values()].sort((a, b) => b.len - a.len);
+  wallList.forEach((w, i) => { w.id = wallLetter(i); });
+  for (const pc of pieces) if (pc.len > 0) pc.id = walls.get((Math.floor(pc.len * 10 + 0.05) / 10).toFixed(1)).id;
   const out = {
     connectors: TYPE_ORDER.filter(t => conns.has(t)).map(t => ({ type: t, qty: conns.get(t), g: connVolume(t, g, p, S.settings.slip) * dens })),
-    walls: [...walls.values()].sort((a, b) => b.len - a.len).map(w => ({ ...w, g: w.len * w.h * g.t * (1 - wallHoleFraction(w.len, w.h, S)) * dens })),
+    walls: wallList.map(w => ({ ...w, g: w.len * w.h * g.t * (1 - wallHoleFraction(w.len, w.h, S)) * dens })),
     rails: [...railMap.values()].map(r => {
       const teeth = Math.floor(r.len / g.pitch);
       return { ...r, g: (r.len * r.width * S.settings.railPlate + teeth * S.settings.toothT * S.settings.toothH * r.width) * dens };
     }),
   };
-  const all = [...out.connectors, ...out.walls, ...out.rails];
+  out.extras = [];
+  if (S.settings.clips && clipCount) {
+    // label clip, see dd_label_clip(): U around the wall plus the slanted face, 40 mm wide
+    const w = 1.2, gap = g.t + 0.15, area = (gap + 2 * w) * (8 + w) - gap * 8 + 12 * w;
+    out.extras.push({ kind: 'clip', qty: clipCount, g: area * 40 * dens });
+  }
+  const all = [...out.connectors, ...out.walls, ...out.rails, ...out.extras];
   out.parts = all.reduce((s, x) => s + x.qty, 0);
   out.grams = all.reduce((s, x) => s + x.qty * x.g, 0);
   return out;
@@ -499,6 +524,33 @@ function gridWalls(St, cols, rows) {
   const snapR = (v, axis) => st.border === 'rail' ? nearestOf(railSlots(axis, St, g).slots, v) : v;
   return [...xs.map(x => ({ o: 'v', c: snapR(x, 'x'), a: g.B, b: g.D - g.B })),
           ...ys.map(y => ({ o: 'h', c: snapR(y, 'y'), a: g.B, b: g.W - g.B }))];
+}
+// positions of the walls between c0 and c1 so the *net* compartments follow the weights
+function weightedSplit(c0, c1, w, off0, off1, t) {
+  const tot = w.reduce((a, b) => a + b, 0), net = (c1 - off1) - (c0 + off0) - (w.length - 1) * t, out = [];
+  let cum = 0;
+  for (let k = 1; k < w.length; k++) { cum += w[k - 1]; out.push(r2(c0 + off0 + net * cum / tot + (k - 1) * t + t / 2)); }
+  return out;
+}
+function stripWalls(St, cols, rows) {
+  const g = geom(St), st = St.settings, t = g.t;
+  const edgeOff = st.border === 'rail' ? g.railT : st.border === 'frame' ? null : 0;
+  const span = (L) => edgeOff === null ? [g.B, L - g.B, t / 2, t / 2] : [0, L, edgeOff, edgeOff];
+  const [x0, x1, ox0, ox1] = span(g.W), [y0, y1, oy0, oy1] = span(g.D);
+  const snapR = (v, axis) => st.border === 'rail' ? nearestOf(railSlots(axis, St, g).slots, v) : v;
+  const xs = weightedSplit(x0, x1, cols, ox0, ox1, t).map(x => snapR(x, 'x'));
+  const walls = xs.map(x => ({ o: 'v', c: x, a: g.B, b: g.D - g.B }));
+  // borders that almost line up with the neighbouring strip snap onto it (dd_lay_align),
+  // otherwise the two connectors on the strip wall between them would collide
+  let prev = [];
+  cols.forEach((_, i) => {
+    const a = i === 0 ? g.B : xs[i - 1], b = i === cols.length - 1 ? g.W - g.B : xs[i];
+    const ys = weightedSplit(y0, y1, rows[i], oy0, oy1, t).map(y => snapR(y, 'y'))
+      .map(y => { const q = nearestOf(prev, y); return prev.length && Math.abs(q - y) < minConnGap(g, St.profile) ? q : y; });
+    for (const y of ys) walls.push({ o: 'h', c: y, a, b });
+    prev = ys;
+  });
+  return walls;
 }
 const nearestOf = (arr, v) => arr.length ? arr.reduce((b, c) => Math.abs(c - v) < Math.abs(b - v) ? c : b) : v;
 function withSample(St) {
@@ -582,7 +634,7 @@ function toMM(e) {
 }
 
 function connSvg(n, g, p, cls) {
-  const arms = n.dirs, pts = connOutline(arms, g, p);
+  const arms = n.dirs, pts = connOutline(arms, g, p, 8, false, n.type === 'corner_round' ? g.cornerR : 0);
   const d = 'M' + pts.map(([x, y]) => `${r2(x + n.x)},${r2(y + n.y)}`).join('L') + 'Z';
   let slots = '';
   const sw = g.slotW, L = p.arm;
@@ -604,7 +656,7 @@ function drawSVG() {
   const out = [];
   const dw = 6 / s * 2.2;
   out.push(`<rect class="drawer-wall" x="${-dw}" y="${-dw}" width="${W + 2 * dw}" height="${D + 2 * dw}" rx="${dw}"/>`);
-  out.push(`<rect class="drawer-in" x="0" y="0" width="${W}" height="${D}"/>`);
+  out.push(`<rect class="drawer-in" x="0" y="0" width="${W}" height="${D}" rx="${S.drawer.r || 0}"/>`);
 
   // grid
   const step = st.border === 'rail' ? null : st.grid;
@@ -666,6 +718,15 @@ function drawSVG() {
     out.push(`<rect class="${cls}" x="${r2(x)}" y="${r2(y)}" width="${r2(Math.max(0.3, w))}" height="${r2(Math.max(0.3, h))}"/>`);
   }
 
+  // wall letters from the parts list – the assembly plan
+  const bs = 7 / s;
+  if (st.labels || ui.printing) for (const pc of A.pieces) if (pc.id && pc.len > 3 * bs) {
+    // a quarter along the wall, clear of the compartment sizes in the middle
+    const q = pc.s + (pc.e - pc.s) * (pc.len > 4 * bs ? 0.25 : 0.5);
+    const [x, y] = pc.o === 'h' ? [q, pc.c] : [pc.c, q];
+    out.push(`<g class="wall-tag"><circle cx="${r2(x)}" cy="${r2(y)}" r="${r2(bs * 1.15)}"/><text x="${r2(x)}" y="${r2(y)}" style="font-size:${r2(bs * (pc.id.length > 1 ? 1.1 : 1.45))}px">${pc.id}</text></g>`);
+  }
+
   // labels
   const fs = 11 / s;
   if (fs < 40) for (const R of A.comps.list) {
@@ -711,6 +772,7 @@ function drawSVG() {
 // Rendering: side panels
 // ---------------------------------------------------------------------------
 function iconSvg(kind, type) {
+  if (kind === 'clip') return `<svg viewBox="0 0 28 28"><path d="M12 24V8h4v16M12 8L5 15" fill="none" stroke="var(--wall)" stroke-width="2.5" stroke-linejoin="round"/></svg>`;
   if (kind === 'wall') return `<svg viewBox="0 0 28 28"><rect x="2" y="11" width="24" height="6" rx="1" fill="var(--wall)"/></svg>`;
   if (kind === 'rail') return `<svg viewBox="0 0 28 28"><rect x="2" y="17" width="24" height="3" fill="var(--rail)"/>${[4, 9, 14, 19, 24].map(x => `<rect x="${x - 1}" y="11" width="2" height="6" fill="var(--rail)"/>`).join('')}</svg>`;
   const g = { armW: 7.2, slotW: 2.2, pocket: 6 }, p = { arm: 12, fillet: 5 };
@@ -719,6 +781,7 @@ function iconSvg(kind, type) {
   return `<svg viewBox="0 0 28 28">${connSvg(n, g, p, 'conn' + (S.settings.slip ? ' slip' : '') + (type === 'straight' ? ' joint' : ''))}</svg>`;
 }
 
+const wallBadge = id => `<span class="wall-badge">${id}</span>`;
 function drawPanels() {
   const b = A.bom, g = A.g;
   $('#tParts').textContent = b.parts;
@@ -736,7 +799,12 @@ function drawPanels() {
   }
   if (b.walls.length) {
     h += `<div class="bom-group"><h4><span>Wände · ${fmt(g.t)} × ${fmt(g.wallH)} mm</span><span>${b.walls.reduce((s, c) => s + c.qty, 0)}</span></h4>`;
-    for (const w of b.walls) h += item(iconSvg('wall'), `${fmt(w.len)} mm`, `Höhe ${fmt(w.h)} mm · ca. ${fmt(w.g)} g`, w.qty);
+    for (const w of b.walls) h += item(wallBadge(w.id), `${fmt(w.len)} mm`, `Höhe ${fmt(w.h)} mm · ca. ${fmt(w.g)} g`, w.qty);
+    h += '</div>';
+  }
+  if (b.extras.length) {
+    h += `<div class="bom-group"><h4><span>Zubehör</span><span>${b.extras.reduce((s, c) => s + c.qty, 0)}</span></h4>`;
+    for (const x of b.extras) h += item(iconSvg('clip'), 'Beschriftungsclip', `Wird oben auf eine Wand gesteckt · ca. ${fmt(x.g)} g`, x.qty);
     h += '</div>';
   }
   if (b.rails.length) {
@@ -765,10 +833,39 @@ function drawPanels() {
   } else sec.hidden = true;
 }
 
+// Printed assembly plan: parts by letter and the steps for this edge mode.
+function drawPlan() {
+  const b = A.bom, st = S.settings;
+  const edge = { frame: 'Rahmen', endcap: 'Endstücke', rail: 'Raster-Schienen', none: 'direkt geklemmt' }[st.border];
+  const steps = [];
+  steps.push(`Alle Teile drucken (${b.parts} Teile, ca. ${fmt(b.grams, 0)} g).` + (st.labels ? ' In jedes Wandende ist sein Buchstabe und seine Länge graviert.' : ''));
+  if (st.border === 'rail') steps.push('Raster-Schienen an die Schubladenseiten kleben oder schrauben – zusammengesetzte Schienen mit Zapfen in die Buchse stecken.');
+  if (st.border === 'frame') steps.push('Mit dem Rahmen beginnen: Ecken, T-Stücke und die Außenwände zu einem Rechteck zusammenstecken.');
+  if (b.connectors.some(c => c.type === 'straight')) steps.push('Geteilte lange Wände mit den geraden Verlängerungen verbinden.');
+  steps.push(st.slip
+    ? 'Die durchgehenden Wände aufstellen, die kurzen Wände dazwischen stellen und dann die Verbinder von oben aufstecken.'
+    : 'Innenwände nach dem Plan einsetzen – die Buchstaben im Plan zeigen, welche Wand wohin gehört. Von einer Seite zur anderen arbeiten, jeweils Wand in den Verbinder schieben.');
+  if (st.border === 'endcap') steps.push('Die Endstücke sitzen an der Schubladenwand – das Ganze am Stück in die Schublade setzen.');
+  else if (st.border !== 'rail') steps.push('Das fertige Gitter in die Schublade setzen.');
+  if (b.extras.length) steps.push('Beschriftungsclips beschriften und oben auf die Wände der Fächer stecken.');
+  $('#plan').innerHTML = `<h4>${esc(S.name)}</h4>
+    <div class="hint">Schublade ${S.drawer.w} × ${S.drawer.d} × ${S.drawer.h} mm · Rand: ${edge}${st.slip ? ' · Aufsteck-Verbinder' : ''} · Wände ${fmt(A.g.t)} × ${fmt(A.g.wallH)} mm</div>
+    <table><tr><th>Teil</th><th>Maß</th><th>Anzahl</th></tr>
+      ${b.walls.map(w => `<tr><td><b>Wand ${w.id}</b></td><td>${fmt(w.len)} mm</td><td>${w.qty}×</td></tr>`).join('')}
+      ${b.connectors.map(c => `<tr><td>${typeName(c.type)}</td><td>${fmt(S.profile.height)} mm hoch</td><td>${c.qty}×</td></tr>`).join('')}
+      ${b.rails.map(r => `<tr><td>Schiene</td><td>${fmt(r.len)} mm</td><td>${r.qty}×</td></tr>`).join('')}
+      ${b.extras.map(x => `<tr><td>Beschriftungsclip</td><td>40 mm breit</td><td>${x.qty}×</td></tr>`).join('')}
+    </table>
+    <ol>${steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>`;
+}
+addEventListener('beforeprint', () => { ui.printing = true; drawSVG(); });
+addEventListener('afterprint', () => { ui.printing = false; drawSVG(); });
+
 function render() {
   A = analyze(S);
   drawSVG();
   drawPanels();
+  drawPlan();
   if (ui.is3d) build3D();
 }
 
@@ -1125,6 +1222,7 @@ function ask(title, { text = '', input = null, ok = 'OK' } = {}) {
   $('#askTitle').textContent = title;
   $('#askText').textContent = text; $('#askText').hidden = !text;
   $('#askField').hidden = input === null;
+  $('#askInput').maxLength = input && input.length > 60 ? 100000 : 60;   // long values: share links
   $('#askInput').value = input ?? '';
   $('#askOk').textContent = ok;
   dlg.returnValue = '';
@@ -1147,13 +1245,24 @@ $('#btnClear').addEventListener('click', async () => {
     mutate(() => { S.walls = []; ui.sel = null; });
 });
 const gridDlg = $('#gridDlg');
+// strips from left to right (relative widths), each split front to back (relative depths)
+const TEMPLATES = {
+  cutlery:  { cols: [1, 1, 1, 1, 2], rows: [[1], [1], [1], [1], [1, 1]] },
+  workshop: { cols: [2, 1], rows: [[1], [1, 1, 1]] },
+  mixed:    { cols: [1, 1], rows: [[1, 1], [1, 1, 1, 1]] },
+  desk:     { cols: [1, 2, 1], rows: [[1, 1], [1], [1, 1, 1]] },
+  small:    { cols: [1, 1, 1, 1], rows: [[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1]] },
+};
 $('#btnGrid').addEventListener('click', () => gridDlg.showModal());
+$('#gTpl').addEventListener('change', () => { $('#gGridRow').hidden = $('#gTpl').value !== 'grid'; });
 $('#gCancel').addEventListener('click', e => { e.preventDefault(); gridDlg.close(); });
 $('#gOk').addEventListener('click', e => {
   e.preventDefault();
+  const tpl = TEMPLATES[$('#gTpl').value];
   const c = clamp(parseInt($('#gCols').value) || 1, 1, 30), r = clamp(parseInt($('#gRows').value) || 1, 1, 30);
   gridDlg.close();
-  mutate(() => { S.walls = gridWalls(S, c, r); ui.sel = null; });
+  mutate(() => { S.walls = tpl ? stripWalls(S, tpl.cols, tpl.rows) : gridWalls(S, c, r); ui.sel = null; });
+  if (A.conflicts) flash('Die Schublade ist für diese Vorlage zu klein – rot markierte Stellen anpassen.');
 });
 
 // header buttons
@@ -1180,7 +1289,32 @@ for (const b of $$('[data-export]')) b.addEventListener('click', () => {
   if (k === 'scad') download(fileBase() + '_druckjob.scad', jobScad(), 'text/plain');
   if (k === 'print') window.print();
   if (k === 'offline') saveOffline();
+  if (k === 'link') shareLink();
 });
+
+// ---- share link: the project, deflated into the URL hash -------------------
+const PAGES_URL = 'https://barry2040.github.io/the-drawer-dividers/';
+const b64url = bytes => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const unb64url = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+async function pipe(bytes, stream) { return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer()); }
+async function shareLink() {
+  const { name, drawer, profile, settings, walls } = S;
+  const data = await pipe(new TextEncoder().encode(JSON.stringify({ name, drawer, profile, settings, walls })), new CompressionStream('deflate-raw'));
+  const base = location.protocol.startsWith('http') ? location.origin + location.pathname : PAGES_URL;
+  const url = base + '#p=' + b64url(data);
+  try { await navigator.clipboard.writeText(url); flash('Link kopiert – er enthält das ganze Layout.'); }
+  catch { await ask('Link zum Teilen', { text: 'Kopiere diesen Link:', input: url }); }
+}
+async function loadFromHash() {
+  const m = location.hash.match(/^#p=([\w-]+)$/);
+  if (!m) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  try {
+    const o = migrate(JSON.parse(new TextDecoder().decode(await pipe(unb64url(m[1]), new DecompressionStream('deflate-raw')))));
+    mutate(() => { S = o; }); syncInputs(); fit(); render();
+    flash('Geteiltes Layout geladen – Rückgängig holt dein vorheriges zurück.');
+  } catch { ask('Link konnte nicht gelesen werden', { text: 'Der Link ist unvollständig oder beschädigt.' }); }
+}
 
 // The published page is the self-contained build; offer it as a file to keep.
 const offlineBtn = $('[data-export="offline"]');
@@ -1207,8 +1341,9 @@ function download(name, text, type) {
 function bomCsv() {
   const b = A.bom, rows = [['Kategorie', 'Teil', 'Länge (mm)', 'Höhe/Breite (mm)', 'Anzahl', 'ca. Gramm je Stück', 'Hinweis']];
   for (const c of b.connectors) rows.push(['Verbinder', typeName(c.type), '', fmt(S.profile.height), c.qty, fmt(c.g), c.type]);
-  for (const w of b.walls) rows.push(['Wand', `Wand ${fmt(w.len)}`, fmt(w.len), fmt(w.h), w.qty, fmt(w.g), `Dicke ${fmt(A.g.t)}`]);
+  for (const w of b.walls) rows.push(['Wand', `Wand ${w.id} ${fmt(w.len)}`, fmt(w.len), fmt(w.h), w.qty, fmt(w.g), `Dicke ${fmt(A.g.t)}`]);
   for (const r of b.rails) rows.push(['Schiene', `Schiene ${fmt(r.len)}`, fmt(r.len), fmt(r.width), r.qty, fmt(r.g), `Zahnversatz ${fmt(r.offset, 2)}${r.tongue ? ', Zapfen' : ''}${r.socket ? ', Buchse' : ''}`]);
+  for (const x of b.extras) rows.push(['Zubehör', 'Beschriftungsclip', '40', '', x.qty, fmt(x.g), 'oben auf eine Wand stecken']);
   rows.push([], ['Summe', '', '', '', b.parts, fmt(b.grams, 0), `Schublade ${S.drawer.w}×${S.drawer.d}×${S.drawer.h} mm`]);
   return '﻿' + rows.map(r => r.map(v => /[;"\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(';')).join('\r\n');
 }
@@ -1223,11 +1358,12 @@ function buildJob() {
   const prof = `dd_profile(${Object.entries(p).map(([k, v]) => `${k} = ${num(v)}`).join(', ')})`;
   const parts = [];   // {label, body, px, py, qty, w}
   for (const c of b.connectors)
-    parts.push({ label: typeName(c.type), body: `dd_connector("${c.type}", P${st.slip ? ', slip = true' : ''});`, px: 2 * p.arm + 4, py: 2 * p.arm + 4, qty: c.qty, w: 2 * p.arm });
+    parts.push({ label: typeName(c.type), body: `dd_connector("${c.type}", P${st.slip ? ', slip = true' : ''}${c.type === 'corner_round' ? `, corner_r = ${num(g.cornerR)}` : ''});`, px: 2 * p.arm + 4, py: 2 * p.arm + 4, qty: c.qty, w: 2 * p.arm });
   const flat = st.orient === 'flat';
   for (const w of b.walls) {
-    const call = `dd_wall(${num(w.len)}, P, height = ${num(w.h)}, pattern = "${st.pattern}", grip = ${num(st.grip)})`;
-    parts.push({ label: `Wand ${num(w.len)} mm`, body: flat ? `translate([0, ${num(w.h / 2)}, 0]) dd_lay_flat(${num(g.t)}) ${call};` : call + ';',
+    const lab = st.labels ? `, label = "${w.id}", label2 = "${num(w.len)}"` : '';
+    const call = `dd_wall(${num(w.len)}, P, height = ${num(w.h)}, pattern = "${st.pattern}", grip = ${num(st.grip)}${lab})`;
+    parts.push({ label: `Wand ${w.id} ${num(w.len)} mm`, body: flat ? `translate([0, ${num(w.h / 2)}, 0]) dd_lay_flat(${num(g.t)}) ${call};` : call + ';',
                  px: w.len + gap, py: (flat ? w.h : g.t) + gap, qty: w.qty, w: w.len });
   }
   for (const r of b.rails) {
@@ -1236,6 +1372,10 @@ function buildJob() {
                  body: `translate([${num(-r.len / 2)}, ${num(g.railT / 2)}, 0]) rotate([90, 0, 0]) ${call};`, px: r.len + gap, py: g.railT + gap, qty: r.qty, w: r.len });
   }
 
+  for (const x of b.extras) {
+    const sx = g.t + 0.15 + 2.4 + 12 * Math.cos(Math.PI / 4) + 1.2, sy = 8 + 2.4 + 12 * Math.sin(Math.PI / 4);
+    parts.push({ label: 'Beschriftungsclip', body: `translate([0, ${num(8 - sy / 2)}, 0]) dd_label_clip(40, P);`, px: sx + 4, py: sy + 4, qty: x.qty, w: sx });
+  }
   // split big quantities into several bed-sized plates
   const plates = [];
   parts.forEach((pt, i) => {
@@ -1374,8 +1514,9 @@ function build3D(resetCam) {
     const m = n.clash ? mBad : n.joint ? mJoint : st.slip ? mSlip : mConn;
     if (n.type.startsWith('slip')) { extrude(connOutline(n.dirs, g, p), p.height, 0, m, n); continue; }
     const cap = Math.min(st.slip ? Math.max(p.cap, p.floor_t) : p.cap, p.height - 1);
-    extrude(connOutline(n.dirs, g, p, 8, true), p.height - cap, 0, m, n);
-    if (cap > 0) extrude(connOutline(n.dirs, g, p), cap, p.height - cap, m, n);
+    const cr = n.type === 'corner_round' ? g.cornerR : 0;
+    extrude(connOutline(n.dirs, g, p, 8, true, cr), p.height - cap, 0, m, n);
+    if (cap > 0) extrude(connOutline(n.dirs, g, p, 8, false, cr), cap, p.height - cap, m, n);
   }
   // rails
   for (const r of A.rails) {
@@ -1409,3 +1550,5 @@ A = analyze(S);
 fit();
 setTool('draw');
 new ResizeObserver(() => { fit(); drawSVG(); }).observe($('#canvasWrap'));
+loadFromHash();
+addEventListener('hashchange', loadFromHash);

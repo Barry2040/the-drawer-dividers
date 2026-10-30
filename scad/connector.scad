@@ -4,7 +4,9 @@ use <lib/drawer_divider.scad>
 
 /* [Part] */
 // Connector type
-Type = "cross"; // [cross:Cross (+), tee:T-piece, corner:Corner (L), straight:Straight joiner, end:End piece, slip_cross:Slip-on cross, slip_tee:Slip-on T, slip_corner_r:Slip-on corner right, slip_corner_l:Slip-on corner left]
+Type = "cross"; // [cross:Cross (+), tee:T-piece, corner:Corner (L), corner_round:Frame corner rounded on the outside, straight:Straight joiner, end:End piece, slip_cross:Slip-on cross, slip_tee:Slip-on T, slip_corner_r:Slip-on corner right, slip_corner_l:Slip-on corner left]
+// Outer radius of the rounded frame corner (mm, only for "Frame corner rounded")
+Corner_Radius = 8; // [0:0.5:30]
 // For a slip-on layout: closed cap like the slip-on connectors, pushed on from above
 Slip_On_Set = false;
 // How many copies on the plate
@@ -62,4 +64,4 @@ P = dd_profile(
     end_gap = End_Gap, top_gap = Top_Gap);
 
 pitch = dd_connector_size(P) + Spacing;
-dd_grid(Count, pitch, pitch) dd_connector(Type, P, Slip_On_Set);
+dd_grid(Count, pitch, pitch) dd_connector(Type, P, Slip_On_Set, corner_r = Type == "corner_round" ? Corner_Radius : 0);

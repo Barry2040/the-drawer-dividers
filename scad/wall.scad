@@ -31,6 +31,10 @@ Margin_Top_Bottom = 5; // [2:0.5:20]
 End_Chamfer = 0.5; // [0:0.1:2]
 // Finger grip at the top centre (radius in mm, 0 = off)
 Grip = 0; // [0:0.5:20]
+// Letter engraved into one wall end, e.g. from the designer's parts list ("" = none)
+Label = "";
+// Engrave the length into the other end
+Label_Length = true;
 
 /* [System] */
 // Exact thickness of your printed walls (mm)
@@ -62,7 +66,8 @@ t = dd(P, "wall_t");
 module one_wall()
     dd_wall(Length, P, height = h, pattern = Pattern, cell = Cell_Size,
             web = Web, margin_side = Margin_Side, margin_tb = Margin_Top_Bottom,
-            end_chamfer = End_Chamfer, grip = Grip);
+            end_chamfer = End_Chamfer, grip = Grip,
+            label = Label, label2 = Label_Length ? dd_fmt(Length) : "");
 
 if (Orientation == "flat")
     dd_grid(Count, Length + Spacing, h + Spacing) translate([0, h / 2, 0]) dd_lay_flat(t) one_wall();

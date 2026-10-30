@@ -10,6 +10,8 @@ Drawer_Width = 400; // [50:1:1500]
 Drawer_Depth = 300; // [50:1:1500]
 // Inner height of the drawer (mm)
 Drawer_Height = 60; // [10:1:300]
+// Radius of the drawer's inner corners (mm, 0 = square). Rounds the frame corners to fit.
+Drawer_Corner_Radius = 0; // [0:0.5:40]
 
 /* [Compartments] */
 // Which walls run through from edge to edge
@@ -44,6 +46,10 @@ Wall_Orientation = "standing"; // [standing:Standing, flat:Flat]
 Wall_Pattern = "hex"; // [none:None, hex:Honeycomb, circle:Circles]
 // Finger grip at the top of every wall (radius in mm, 0 = off)
 Grip = 0; // [0:0.5:20]
+// Engrave the parts-list letter and the length into the wall ends (hidden in the connectors)
+Wall_Labels = true;
+// Add one label clip per compartment to the parts list
+Label_Clips = false;
 // Language of the labels in the preview
 Language = "en"; // [en:English, de:Deutsch]
 
@@ -108,16 +114,19 @@ O = dd_layout_opts(width = Drawer_Width, depth = Drawer_Depth, height = Drawer_H
                    strips = Strips, splits = Splits, swap = Direction == "left_right",
                    edge = Edge, slip = Slip_On, max_len = Max_Wall_Length,
                    edge_gap = Edge_Gap, clamp_gap = Clamp_Gap, rail_plate = Rail_Plate,
-                   tooth_t = Tooth_Thickness, tooth_h = Tooth_Height);
+                   tooth_t = Tooth_Thickness, tooth_h = Tooth_Height, corner_r = Drawer_Corner_Radius);
 
 L      = dd_layout(P, O);
-BOM    = dd_layout_bom(L);
+BOM    = concat(dd_layout_bom(L), Label_Clips ? [["x", "clip", len(dd(L, "comps"))]] : []);
+CLIP   = dd_label_clip_size(dd_profile(wall_t = Wall_Thickness));
 WALL_H = dd(L, "wall_h");
 RAIL_W = dd(L, "rail_w");
 RAIL_T = dd(L, "rail_t");
 T      = dd(P, "wall_t");
 H      = dd(P, "height");
 MIN_LEN = max(8, dd_arm_w(P));
+CORNER_R = dd_layout_corner_r(P, O);
+CORNER_TOO_BIG = Edge == "frame" && Drawer_Corner_Radius - Edge_Gap > dd_corner_r_max(P);
 // a wall from the drawer side (rails / clamping) must keep the connector arm off the side
 MIN_EDGE = max(MIN_LEN, dd(P, "arm") - dd_wall_inset(P) + 1);
 function at_side(w) = let(Ls = w[0] == "x" ? Drawer_Width : Drawer_Depth, i = dd_wall_inset(P))
@@ -130,6 +139,7 @@ CLASH  = dd_layout_clashes(L, P);
 DE = Language == "de";
 function name_of(type) =
     let(n = [["cross", "Cross", "Kreuz"], ["tee", "T-piece", "T-Stück"], ["corner", "Corner", "Ecke"],
+             ["corner_round", "Frame corner (rounded)", "Rahmenecke (gerundet)"],
              ["straight", "Straight joiner", "Gerade (Verlängerung)"], ["end", "End piece", "Endstück"],
              ["slip_cross", "Slip-on cross, through", "Aufsteck-Kreuz durchgehend"], ["slip_tee", "Slip-on T, through", "Aufsteck-T durchgehend"],
              ["slip_corner_r", "Slip-on corner R", "Aufsteck-Ecke R"], ["slip_corner_l", "Slip-on corner L", "Aufsteck-Ecke L"]],
@@ -138,31 +148,42 @@ function name_of(type) =
     // in a slip-on layout every connector carries the cap
     str(Slip_On && !through ? (DE ? "Aufsteck-" : "Slip-on ") : "", DE ? m[2] : m[1]);
 
+// walls are lettered A, B, C … in parts-list order (longest first)
+WALL_LENS = [for (b = BOM) if (b[0] == "w") b[1]];
+function wall_letter(len) = let(i = search([len], WALL_LENS)[0])
+    is_num(i) ? (i < 26 ? chr(65 + i) : str(chr(65 + floor(i / 26) - 1), chr(65 + i % 26))) : "";
+
 function line_label(b) =
     b[0] == "c" ? name_of(b[1])
-  : b[0] == "w" ? str(DE ? "Wand " : "Wall ", dd_fmt(b[1]), " mm")
+  : b[0] == "w" ? str(DE ? "Wand " : "Wall ", wall_letter(b[1]), "  ", dd_fmt(b[1]), " mm")
+  : b[0] == "x" ? (DE ? "Beschriftungsclip" : "Label clip")
   : str(DE ? "Schiene " : "Rail ", dd_fmt(b[1][0]), " mm",
         b[1][3] ? (DE ? " +Buchse" : " +socket") : "", b[1][2] ? (DE ? " +Zapfen" : " +tongue") : "",
         DE ? ", Versatz " : ", offset ", dd_fmt(b[1][1], 2));
 
 // ---- one printable part per parts-list line -------------------------------
 module part(b) {
-    if (b[0] == "c") dd_connector(b[1], P, Slip_On);
+    if (b[0] == "c") dd_connector(b[1], P, Slip_On, corner_r = b[1] == "corner_round" ? CORNER_R : 0);
     else if (b[0] == "w") {
         if (Wall_Orientation == "flat")
-            translate([0, WALL_H / 2, 0]) dd_lay_flat(T) wall_part(b[1]);
-        else wall_part(b[1]);
-    } else
+            translate([0, WALL_H / 2, 0]) dd_lay_flat(T) wall_part(b[1], Wall_Labels);
+        else wall_part(b[1], Wall_Labels);
+    } else if (b[0] == "x")
+        translate([0, 8 - CLIP[1] / 2, 0]) dd_label_clip(40, P);
+    else
         translate([-b[1][0] / 2, RAIL_T / 2, 0]) rotate([90, 0, 0])
             dd_rail(b[1][0], RAIL_W, P, plate = Rail_Plate, tooth_t = Tooth_Thickness,
                     tooth_h = Tooth_Height, teeth_offset = b[1][1], tongue = b[1][2],
                     socket = b[1][3], screws = b[1][4]);
 }
-module wall_part(len) dd_wall(len, P, height = WALL_H, pattern = Wall_Pattern, grip = Grip);
+module wall_part(len, labels = false)
+    dd_wall(len, P, height = WALL_H, pattern = Wall_Pattern, grip = Grip,
+            label = labels ? wall_letter(len) : "", label2 = labels ? dd_fmt(len) : "");
 
 function pitch(b) =
     b[0] == "c" ? [dd_connector_size(P) + 4, dd_connector_size(P) + 4]
   : b[0] == "w" ? [b[1] + 5, (Wall_Orientation == "flat" ? WALL_H : T) + 5]
+  : b[0] == "x" ? [CLIP[0] + 4, CLIP[1] + 4]
   : [b[1][0] + 5, RAIL_T + 5];
 function block_h(b) = let(p = pitch(b), cols = max(1, min(b[2], floor(Bed_Size / p[0])))) ceil(b[2] / cols) * p[1];
 
@@ -199,7 +220,7 @@ module assembly() {
     for (k = [0 : 1 : len(CS) - 1]) let(c = CS[k])
         color(len(search(k, CLASH)) ? "#d03030" : c[5] ? "#b07a3c" : Slip_On ? "#d4570f" : "#f07020")
             translate([c[1], c[2], 0])
-                dd_connector_installed(c[3], c[4], dd_cap(P, Slip_On), P);
+                dd_connector_installed(c[3], c[4], dd_cap(P, Slip_On), P, c[0] == "corner_round" ? CORNER_R : 0);
     // rails
     for (r = dd(L, "rails")) color("#7f93ad")
         if (r[0] == "L") translate([0, r[1], 0]) cube([RAIL_T, r[3], RAIL_W]);
@@ -216,7 +237,8 @@ module assembly() {
         ["", str(DE ? "Gesamt: " : "Total: ", dd_sum([for (b = BOM) b[2]], len(BOM)), DE ? " Teile" : " parts")],
         len(SHORT) ? [str("! ", len(SHORT), DE ? " Wand/Wände zu kurz (rot)" : " wall(s) too short (red)")] : [],
         len(CLASH) ? [str("! ", len(CLASH), DE ? " Verbinder überschneiden sich (rot)" : " connectors overlap (red)")] : [],
-        H > Drawer_Height ? [DE ? "! Verbinder höher als die Schublade" : "! Connectors taller than the drawer"] : []);
+        H > Drawer_Height ? [DE ? "! Verbinder höher als die Schublade" : "! Connectors taller than the drawer"] : [],
+        CORNER_TOO_BIG ? [DE ? "! Eckradius zu groß für die Rahmenecken" : "! Corner radius too big for the frame corners"] : []);
     fs = 6; lh = 10; cw = 175; ch = len(lines) * lh + 16;
     translate([W + 30, D - ch, 0]) {
         color("white") cube([cw, ch, 1]);
@@ -229,10 +251,11 @@ module assembly() {
 // ---- output ---------------------------------------------------------------
 for (i = [0 : 1 : len(BOM) - 1]) echo(str("#", i + 1, "  ", BOM[i][2], " x ", line_label(BOM[i])));
 if (len(SHORT)) echo(str("WARNING: ", len(SHORT), " wall(s) too short – connectors too close together"));
+if (CORNER_TOO_BIG) echo(str("WARNING: drawer corner radius too big – frame corners can only be rounded to ", dd_fmt(dd_corner_r_max(P)), " mm"));
 if (len(CLASH)) echo(str("WARNING: ", len(CLASH), " connectors overlap – compartments narrower than ", dd_min_conn_gap(P), " mm between connector centres"));
 
 if (Show == "assembly") assembly();
-else if (Show == "parts") parts_of(["c", "w", "r"]);
+else if (Show == "parts") parts_of(["c", "w", "r", "x"]);
 else if (Show == "connectors") parts_of(["c"]);
 else if (Show == "walls") parts_of(["w"]);
 else if (Show == "rails") parts_of(["r"]);

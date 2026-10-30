@@ -6,6 +6,7 @@ FILES = {
     "wall.scad": "wand.scad",
     "rail.scad": "raster_schiene.scad",
     "tolerance_test.scad": "toleranz_test.scad",
+    "label_clip.scad": "beschriftungsclip.scad",
 }
 
 SECTIONS = {
@@ -28,7 +29,16 @@ SECTIONS = {
 # English variable -> (German variable, German description)
 VARS = {
     "Type": ("Verbinder_Typ", "Art des Verbinders"),
+    "Corner_Radius": ("Eckradius", "Außenradius der gerundeten Rahmenecke (mm, nur für „Rahmenecke außen gerundet“)"),
     "Slip_On_Set": ("Aufsteck_Satz", "Für Aufsteck-Verbinder: mit Deckel wie die Aufsteck-Verbinder, wird von oben aufgesteckt"),
+    "Clip_Width": ("Clip_Breite", "Breite des Clips entlang der Wand (mm)"),
+    "Clip_Text": ("Clip_Beschriftung", "Text, der in die Schreibfläche graviert wird (leer = zum Beschriften)"),
+    "Face_Height": ("Schildhoehe", "Höhe der schrägen Schreibfläche (mm)"),
+    "Face_Angle": ("Schildwinkel", "Neigung der Schreibfläche (Grad, 0 = senkrecht)"),
+    "Grip_Depth": ("Klemmtiefe", "Wie weit der Clip die Wand hinunter greift (mm)"),
+    "Text_Size": ("Textgroesse", "Textgröße (mm)"),
+    "Clip_Wall": ("Clip_Wandstaerke", "Materialstärke des Clips (mm)"),
+    "Clip_Fit": ("Clip_Spiel", "Zusätzlicher Platz für die Wand – kleiner = strammer (mm)"),
     "Count": ("Anzahl", "Wie viele Teile auf dem Druckbett"),
     "Spacing": ("Abstand", "Abstand zwischen den Teilen (mm)"),
     "Wall_Thickness": ("Wand_Dicke", "Exakte Dicke deiner gedruckten Trennwände (mm)"),
@@ -57,7 +67,12 @@ VARS = {
     "Margin_Side": ("Rand_Seite", "Massiver Rand an beiden Enden (mm, -1 = automatisch: Einschubtiefe + 2)"),
     "Margin_Top_Bottom": ("Rand_Oben_Unten", "Massiver Rand oben und unten (mm)"),
     "End_Chamfer": ("Fase_Enden", "Fase an den kurzen Enden zum leichteren Einstecken (mm)"),
+    "Drawer_Corner_Radius": ("Eckradius_Schublade", "Radius der Innenecken der Schublade (mm, 0 = eckig). Rundet die Rahmenecken passend ab."),
     "Grip": ("Griffmulde", "Griffmulde oben mittig (Radius in mm, 0 = aus)"),
+    "Label": ("Beschriftung", "Buchstabe, der in ein Wandende graviert wird, z.B. aus der Stückliste des Designers (leer = keiner)"),
+    "Label_Length": ("Laenge_gravieren", "Länge in das andere Wandende gravieren"),
+    "Label_Clips": ("Beschriftungsclips", "Einen Beschriftungsclip pro Fach in die Stückliste aufnehmen"),
+    "Wall_Labels": ("Waende_beschriften", "Buchstabe und Länge in die Wandenden gravieren (verschwinden im Verbinder)"),
     "Width": ("Breite", "Breite der Schiene = Höhe in der Schublade (mm)"),
     "Plate": ("Platten_Dicke", "Dicke der Grundplatte (mm)"),
     "Teeth": ("Zaehne", "Zähne erzeugen?"),
@@ -108,7 +123,7 @@ DEFAULTS = {"Language": '"de"'}
 # dropdown value -> German label ("Variable.value" overrides a plain value)
 LABELS = {
     "cross": "Kreuz (+)", "tee": "T-Stück", "corner": "Ecke (L)", "straight": "Gerade (Verlängerung)",
-    "end": "Endstück", "slip_cross": "Aufsteck-Kreuz durchgehend", "slip_tee": "Aufsteck-T-Stück durchgehend",
+    "corner_round": "Rahmenecke außen gerundet", "end": "Endstück", "slip_cross": "Aufsteck-Kreuz durchgehend", "slip_tee": "Aufsteck-T-Stück durchgehend",
     "slip_corner_r": "Aufsteck-Ecke rechts", "slip_corner_l": "Aufsteck-Ecke links",
     "standing": "Stehend", "flat": "Liegend",
     "none": "Keins", "hex": "Waben", "circle": "Kreise",

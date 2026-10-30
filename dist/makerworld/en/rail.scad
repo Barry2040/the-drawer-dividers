@@ -157,13 +157,14 @@ function dd_wall_length(center_dist, p, ends = 2) =
 //   through_y: one continuous slot along Y (the wall passes straight through)
 //   slip_on:   printed cap-down, then flipped and pushed onto the walls
 
-function dd_connector_types() = ["cross", "tee", "corner", "straight", "end",
+function dd_connector_types() = ["cross", "tee", "corner", "corner_round", "straight", "end",
                                   "slip_cross", "slip_tee", "slip_corner_r", "slip_corner_l"];
 
 function dd_connector_def(type) =
     type == "cross"         ? [[1,1,1,1], [1,1,1,1], false, false] :
     type == "tee"           ? [[1,1,1,0], [1,1,1,0], false, false] :
     type == "corner"        ? [[1,1,0,0], [1,1,0,0], false, false] :
+    type == "corner_round"  ? [[1,1,0,0], [1,1,0,0], false, false] :   // frame corner, use corner_r
     type == "straight"      ? [[1,0,1,0], [1,0,1,0], false, false] :
     type == "end"           ? [[1,0,0,0], [1,0,0,0], false, false] :
     type == "slip_cross"    ? [[1,1,1,1], [1,1,1,1], true,  true ] :
@@ -174,16 +175,23 @@ function dd_connector_def(type) =
 
 // slip = true: part of a slip-on set. Every connector of the set gets the cap and
 // is pushed on from above, also where the walls end instead of running through.
-module dd_connector(type = "cross", p = dd_profile(), slip = false) {
+// corner_r rounds the outer corner, so a frame corner fits a drawer with rounded
+// corners (see dd_corner_r_max()).
+module dd_connector(type = "cross", p = dd_profile(), slip = false, corner_r = 0) {
     def = dd_connector_def(type);
     assert(!is_undef(def), str("dd_connector(): unknown type '", type, "'"));
     dd_connector_custom(arms = def[0], slots = def[1], through_y = def[2],
-                        cap = dd_cap(p, def[3] || slip), p = p);
+                        cap = dd_cap(p, def[3] || slip), p = p, corner_r = corner_r);
 }
+
+// largest outer corner radius that still leaves 0.8 mm beside the slots
+function dd_corner_r_max(p) =
+    let(a = dd_arm_w(p) / 2, dx = dd_pocket_start(p) + a, dy = a - dd_slot_w(p) / 2 - 0.8)
+    dy <= 0 ? dx : dx + dy + sqrt(2 * dx * dy);
 
 // Build any connector from an arm/slot pattern.
 module dd_connector_custom(arms = [1,1,1,1], slots = undef, through_y = false,
-                           cap = 0, p = dd_profile()) {
+                           cap = 0, p = dd_profile(), corner_r = 0) {
     sl  = is_undef(slots) ? arms : slots;
     h   = dd(p, "height");
     aw  = dd_arm_w(p);
@@ -193,7 +201,7 @@ module dd_connector_custom(arms = [1,1,1,1], slots = undef, through_y = false,
     z0  = cap > 0 ? cap : -1;   // slots start above the cap
 
     difference() {
-        linear_extrude(h) dd_connector_outline(arms, p);
+        linear_extrude(h) dd_connector_outline(arms, p, corner_r);
 
         for (i = [0:3]) if (sl[i] && !(through_y && i == 3))
             rotate(90 * i)
@@ -209,15 +217,24 @@ module dd_connector_custom(arms = [1,1,1,1], slots = undef, through_y = false,
     }
 }
 
-module dd_connector_outline(arms, p) {
+module dd_connector_outline(arms, p, corner_r = 0) {
     aw = dd_arm_w(p);
-    dd_round_convex(dd(p, "edge_r"))
-    // a fillet longer than the free arm would swallow the arm ends
-    dd_round_concave(min(dd(p, "fillet"), dd(p, "arm") - aw / 2))
-    union() {
-        square(aw, center = true);
-        for (i = [0:3]) if (arms[i])
-            rotate(90 * i) translate([0, -aw / 2]) square([dd(p, "arm"), aw]);
+    rc = min(corner_r, dd_corner_r_max(p));
+    difference() {
+        dd_round_convex(dd(p, "edge_r"))
+        // a fillet longer than the free arm would swallow the arm ends
+        dd_round_concave(min(dd(p, "fillet"), dd(p, "arm") - aw / 2))
+        union() {
+            square(aw, center = true);
+            for (i = [0:3]) if (arms[i])
+                rotate(90 * i) translate([0, -aw / 2]) square([dd(p, "arm"), aw]);
+        }
+        // outer corners between two missing arms
+        if (rc > 0) for (i = [0:3]) if (!arms[i] && !arms[(i + 1) % 4])
+            rotate(90 * i) translate([aw / 2 - rc, aw / 2 - rc]) difference() {
+                square(rc + 1);
+                circle(r = rc, $fn = 64);
+            }
     }
 }
 
@@ -247,19 +264,19 @@ function dd_connector_size(p) = 2 * dd(p, "arm");
 
 // A connector as it sits in the drawer (cap on top), for assembly previews.
 // The slots stay open so the walls show inside them; through = "x"|"y"|"" for slip-on.
-module dd_connector_installed(arms, through = "", cap = 0, p = dd_profile()) {
+module dd_connector_installed(arms, through = "", cap = 0, p = dd_profile(), corner_r = 0) {
     h   = dd(p, "height");
     arm = dd(p, "arm");
     ps  = dd_pocket_start(p);
     sw  = dd_slot_w(p);
     linear_extrude(h - cap) difference() {
-        dd_connector_outline(arms, p);
+        dd_connector_outline(arms, p, corner_r);
         for (i = [0:3]) if (arms[i])
             rotate(90 * i) translate([ps, -sw / 2]) square([arm + 1 - ps, sw]);
         if (through != "")
             rotate(through == "x" ? 0 : 90) square([2 * arm + 2, sw], center = true);
     }
-    if (cap > 0) translate([0, 0, h - cap]) linear_extrude(cap) dd_connector_outline(arms, p);
+    if (cap > 0) translate([0, 0, h - cap]) linear_extrude(cap) dd_connector_outline(arms, p, corner_r);
 }
 
 // =============================================================================
@@ -267,9 +284,11 @@ module dd_connector_installed(arms, through = "", cap = 0, p = dd_profile()) {
 // =============================================================================
 // Built standing: X = length, Y = thickness (centred), Z = height.
 
+// label / label2: engraved into the wall ends that disappear in the connectors,
+// label upright at +X (the parts-list letter), label2 running upwards at -X (the length).
 module dd_wall(length, p = dd_profile(), height = undef, pattern = "none",
                cell = 8, web = 2, margin_side = -1, margin_tb = 5,
-               end_chamfer = 0.5, grip = 0) {
+               end_chamfer = 0.5, grip = 0, label = "", label2 = "") {
     h  = is_undef(height) ? dd_wall_height(p) : height;
     t  = dd(p, "wall_t");
     // keep the pattern out of the connector pockets
@@ -282,6 +301,23 @@ module dd_wall(length, p = dd_profile(), height = undef, pattern = "none",
         if (grip > 0)
             translate([0, 0, h]) rotate([90, 0, 0])
                 cylinder(r = grip, h = t + 2, center = true, $fn = 48);
+        dd_wall_labels(length, t, h, dd(p, "insert") - dd(p, "end_gap"), label, label2);
+    }
+}
+
+module dd_wall_labels(l, t, h, lw, label, label2) {
+    dep = min(0.4, t / 4);
+    both = l >= 2 * lw + 2;
+    module engrave(x, z, s, txt, up)
+        translate([x, -t / 2 + dep, z]) rotate([90, 0, 0]) linear_extrude(dep + 1)
+            rotate(up ? 90 : 0) text(txt, size = s, halign = "center", valign = "center");
+    if (label != "") {
+        s = min(7, (both ? lw : l) - 4, h / 3);
+        if (s >= 2) engrave(both ? l / 2 - lw / 2 : 0, h / 2, s, label, false);
+    }
+    if (label2 != "" && both) {
+        s = min(4, lw - 4, (h - 8) / (0.75 * len(label2) + 1));
+        if (s >= 2) engrave(-l / 2 + lw / 2, h / 2, s, label2, true);
     }
 }
 
@@ -399,6 +435,45 @@ module dd_rail_tooth(width, tt, th, ch, fr) {
 }
 
 // =============================================================================
+//  Label clip
+// =============================================================================
+// Slides onto the top edge of a wall; the slanted face takes a marker, a sticker
+// or an engraved text. Built in print orientation: the profile lies on the bed
+// (X = across the wall, Y = up in use) and is extruded by the clip width.
+
+module dd_label_clip(width = 40, p = dd_profile(), face = 12, angle = 45, grip = 8,
+                     wall = 1.2, fit = 0.15, label = "", text_size = 5) {
+    gap = dd(p, "wall_t") + fit;
+    d   = [-cos(angle), -sin(angle)];   // down the face, away from the wall
+    n   = [-sin(angle),  cos(angle)];   // face normal
+    hp  = [-gap / 2 - wall, wall];      // hinge: top front corner of the clip
+    difference() {
+        linear_extrude(width) {
+            difference() {
+                translate([-gap / 2 - wall, -grip]) square([gap + 2 * wall, grip + wall]);
+                translate([-gap / 2, -grip - 1]) square([gap, grip + 1]);
+            }
+            // the hull fills the joint, so face and clip share more than one edge
+            hull() {
+                translate(hp - [0, wall]) square([wall, wall]);
+                polygon([hp, hp + face * d, hp + face * d + wall * n, hp + wall * n]);
+            }
+        }
+        if (label != "") {
+            c = hp + wall * n + d * face / 2;
+            dep = min(0.4, wall / 3);
+            multmatrix([[0, -d[0], n[0], c[0]], [0, -d[1], n[1], c[1]], [1, 0, 0, width / 2], [0, 0, 0, 1]])
+                translate([0, 0, -dep]) linear_extrude(dep + 1)
+                    text(label, size = min(text_size, face - 3), halign = "center", valign = "center");
+        }
+    }
+}
+
+// footprint of one clip on the bed (x, y)
+function dd_label_clip_size(p, face = 12, angle = 45, grip = 8, wall = 1.2) =
+    [dd(p, "wall_t") + 0.15 + 2 * wall + face * cos(angle) + wall, grip + wall + face * sin(angle) + wall];
+
+// =============================================================================
 //  Tolerance test
 // =============================================================================
 // A bar with one slot per tolerance (value engraved next to it) plus a short
@@ -514,12 +589,17 @@ function dd_fmt(v, d = 1) = str(round(v * pow(10, d)) / pow(10, d));
 function dd_layout_opts(width = 400, depth = 300, height = 60, strips = "1,1,1",
                         splits = "2", swap = false, edge = "frame", slip = false,
                         max_len = 240, edge_gap = 0.5, clamp_gap = 1,
-                        rail_plate = 2.5, tooth_t = 2, tooth_h = 6) = [
+                        rail_plate = 2.5, tooth_t = 2, tooth_h = 6, corner_r = 0) = [
     ["width", width], ["depth", depth], ["height", height], ["strips", strips],
     ["splits", splits], ["swap", swap], ["edge", edge], ["slip", slip],
     ["max_len", max_len], ["edge_gap", edge_gap], ["clamp_gap", clamp_gap],
-    ["rail_plate", rail_plate], ["tooth_t", tooth_t], ["tooth_h", tooth_h]
+    ["rail_plate", rail_plate], ["tooth_t", tooth_t], ["tooth_h", tooth_h], ["corner_r", corner_r]
 ];
+
+// outer radius of the frame corners for a drawer with rounded inner corners
+function dd_layout_corner_r(p, o) =
+    dd(o, "edge") == "frame" && dd(o, "corner_r") > 0
+        ? max(0, min(dd(o, "corner_r") - dd(o, "edge_gap"), dd_corner_r_max(p))) : 0;
 
 // Rail tooth pattern along one world axis. Rails on the left/right sides run
 // the full depth; front/back rails sit between them.
@@ -665,8 +745,12 @@ function dd_layout(p, o) =
         // world coordinates
         walls = [for (pc = pieces)
             [(pc[0] == "u") != swap ? "x" : "y", pc[1], pc[2], pc[3], pc[3] - pc[2]]],
+        cr = dd_layout_corner_r(p, o),
+        isCorner = function(n) n[4] == "corner" && cr > 0
+            && (abs(n[0] - B) < dd_le() || abs(n[0] - (U - B)) < dd_le())
+            && (abs(n[1] - B) < dd_le() || abs(n[1] - (V - B)) < dd_le()),
         conns = [for (n = lconns)
-            [n[4], swap ? n[1] : n[0], swap ? n[0] : n[1],
+            [isCorner(n) ? "corner_round" : n[4], swap ? n[1] : n[0], swap ? n[0] : n[1],
              swap ? [n[2][1], n[2][0], n[2][3], n[2][2]] : n[2],
              n[5] == "" ? "" : ((n[5] == "u") != swap ? "x" : "y"), n[7]]],
 

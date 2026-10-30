@@ -1,0 +1,28 @@
+# Renders every SCAD file, checks that the generated files are up to date and that
+# the HTML designer computes the same parts as the SCAD library (tools/check.py).
+name: Prüfung
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: OpenSCAD und Schriften installieren
+        run: sudo apt-get update && sudo apt-get install -y openscad fonts-liberation2
+      - name: Playwright installieren
+        run: pip install playwright && playwright install --with-deps chromium
+      - name: Erzeugte Dateien sind aktuell
+        run: |
+          python tools/build.py
+          git diff --exit-code || (echo "::error::Erzeugte Dateien veraltet – bitte 'python tools/build.py' ausführen und committen" && exit 1)
+      - name: SCAD-Dateien und Designer prüfen
+        run: python tools/check.py

@@ -119,6 +119,10 @@ h4.sub { margin: 6px 0 8px; font-size: 11px; text-transform: uppercase; letter-s
 .comp { stroke: none; }
 .comp-label { font-weight: 600; fill: var(--text); opacity: .75; text-anchor: middle; dominant-baseline: middle; pointer-events: none; font-variant-numeric: tabular-nums; }
 .wall { fill: var(--wall); }
+.wall-tag circle { fill: var(--panel); stroke: var(--wall); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.wall-tag text { fill: var(--text); font-weight: 700; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.wall-tag { pointer-events: none; }
+.wall-badge { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--wall); font-weight: 700; font-size: 12px; }
 .wall.bad { fill: var(--err); }
 .wall.hl { fill: var(--sel); }
 .wall.erase { fill: var(--err); opacity: .8; }
@@ -202,7 +206,14 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
   main { display: block; }
   .stage { height: 60vh; page-break-after: always; }
   aside.right { border: 0; overflow: visible; }
+  aside.right > .sec { display: none; }
+  aside.right > #planSec { display: block; }
 }
+#planSec { display: none; }
+#plan h4 { margin: 0 0 4px; font-size: 18px; }
+#plan table { border-collapse: collapse; width: 100%; margin: 8px 0 14px; }
+#plan td, #plan th { border-bottom: 1px solid var(--line); padding: 4px 6px; text-align: left; }
+#plan ol { padding-left: 20px; line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -222,8 +233,9 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
     <div class="menu-pop">
       <button data-export="scad"><b>OpenSCAD-Druckjob</b><small>Alle Teile in einer .scad – Teil wählen, STL exportieren</small></button>
+      <button data-export="link"><b>Link teilen</b><small>Das ganze Layout steckt im Link – zum Verschicken oder für MakerWorld</small></button>
       <button data-export="csv"><b>Stückliste (CSV)</b><small>Für Excel / Tabellen</small></button>
-      <button data-export="print"><b>Drucken / PDF</b><small>Plan und Stückliste</small></button>
+      <button data-export="print"><b>Aufbauplan drucken / PDF</b><small>Plan mit Wandbuchstaben, Teileliste und Aufbauschritte</small></button>
       <button data-export="offline" hidden><b>Offline-Version herunterladen</b><small>Der ganze Designer als eine Datei, läuft ohne Internet</small></button>
     </div>
   </div>
@@ -238,6 +250,9 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
         <label class="field"><span>Breite</span><div class="unit" data-u="mm"><input type="number" data-k="drawer.w" min="50" max="2000" step="1"></div></label>
         <label class="field"><span>Tiefe</span><div class="unit" data-u="mm"><input type="number" data-k="drawer.d" min="50" max="2000" step="1"></div></label>
         <label class="field"><span>Höhe</span><div class="unit" data-u="mm"><input type="number" data-k="drawer.h" min="10" max="500" step="1"></div></label>
+      </div>
+      <div class="row">
+        <label class="field" title="Radius der Innenecken der Schublade – die Rahmenecken werden passend abgerundet"><span>Eckradius</span><div class="unit" data-u="mm"><input type="number" data-k="drawer.r" min="0" max="40" step="0.5"></div></label>
       </div>
     </div>
 
@@ -290,6 +305,8 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
           <label class="field"><span>Raster (Fang)</span><div class="unit" data-u="mm"><input type="number" data-k="settings.grid" step="1" min="1"></div></label>
           <label class="field"><span>Abstand Rand</span><div class="unit" data-u="mm"><input type="number" data-k="settings.borderGap" step="0.1" min="0"></div></label>
         </div>
+        <label class="check"><input type="checkbox" data-k="settings.clips"><span>Beschriftungsclips<small>Ein Clip pro Fach zum Aufstecken auf die Wand – mit Stift beschriften oder Etikett aufkleben</small></span></label>
+        <label class="check"><input type="checkbox" data-k="settings.labels"><span>Wände beschriften<small>Buchstabe und Länge werden in die Wandenden graviert (verschwinden im Verbinder) und stehen im Plan</small></span></label>
         <p class="hint" style="margin:0 0 10px">Längere Wände werden automatisch mit geraden Verbindern geteilt.</p>
         <h4 class="sub">Verbinder</h4>
         <div class="row2">
@@ -362,6 +379,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
     <div class="sec" id="msgSec"><h3>Hinweise</h3><div id="msgs"></div></div>
     <div class="sec" id="selSec" hidden><h3>Auswahl</h3><div id="selInfo" class="sel-info"></div></div>
     <div class="sec"><h3>Stückliste <span class="count" id="bomCount"></span></h3><div id="bom"></div></div>
+    <div class="sec" id="planSec"><h3>Aufbauplan</h3><div id="plan"></div></div>
     <div class="sec">
       <h3>Legende</h3>
       <div class="legend">
@@ -379,9 +397,18 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
 <div id="tip"></div>
 
 <dialog id="gridDlg">
-  <h3>Raster-Vorlage</h3>
-  <p class="hint" style="margin:0 0 12px">Teilt die ganze Schublade in gleich große Fächer. Vorhandene Wände werden ersetzt.</p>
-  <div class="row2">
+  <h3>Vorlage</h3>
+  <p class="hint" style="margin:0 0 12px">Teilt die ganze Schublade nach einer Vorlage auf. Vorhandene Wände werden ersetzt – danach kannst du alles frei anpassen.</p>
+  <label class="field"><span>Vorlage</span>
+    <select id="gTpl">
+      <option value="grid">Raster – gleich große Fächer</option>
+      <option value="cutlery">Besteck – 4 lange Fächer + 1 breites, geteilt</option>
+      <option value="workshop">Werkstatt – 1 großes Fach + 3 kleine</option>
+      <option value="mixed">Gemischt – 2 große + 4 kleine Fächer</option>
+      <option value="desk">Schreibtisch – schmal, breit, schmal</option>
+      <option value="small">Kleinteile – 4 × 4 kleine Fächer</option>
+    </select></label>
+  <div class="row2" id="gGridRow">
     <label class="field"><span>Spalten</span><input type="number" id="gCols" min="1" max="30" value="3"></label>
     <label class="field"><span>Reihen</span><input type="number" id="gRows" min="1" max="30" value="2"></label>
   </div>
@@ -394,7 +421,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
   <div id="stlList"></div>
   <div class="stl-progress"><div id="stlBar"></div></div>
   <div class="hint" id="stlStatus"></div>
-  <div class="actions"><button class="btn" id="stlClose">Schließen</button><button class="btn primary" id="stlZip" disabled>ZIP herunterladen</button></div>
+  <div class="actions"><button class="btn" id="stlClose">Schließen</button><button class="btn" id="stl3mf" disabled title="Alle Platten in einer Datei für Bambu Studio, OrcaSlicer, PrusaSlicer">3MF herunterladen</button><button class="btn primary" id="stlZip" disabled>ZIP herunterladen</button></div>
 </dialog>
 
 <dialog id="askDlg">
