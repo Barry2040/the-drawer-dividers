@@ -224,16 +224,17 @@ module assembly() {
         color("#6b6358") translate([(c[0] + c[2]) / 2, (c[1] + c[3]) / 2, 0.01])
             linear_extrude(0.4) text(str(round(c[4]), " x ", round(c[5])), size = sz, halign = "center", valign = "center");
     }
-    // walls
+    // walls, with their pattern and grip
     for (w = dd(L, "walls")) if (w[4] > 0)
         color(too_short(w) ? "#d03030" : "#5a6a80")
-            if (w[0] == "x") translate([w[2], w[1] - T / 2, 0]) cube([w[4], T, WALL_H]);
-            else translate([w[1] - T / 2, w[2], 0]) cube([T, w[4], WALL_H]);
-    // connectors (simplified, as they sit in the drawer)
+            translate(w[0] == "x" ? [(w[2] + w[3]) / 2, w[1], 0] : [w[1], (w[2] + w[3]) / 2, 0])
+                rotate(w[0] == "x" ? 0 : 90) wall_part(w[4]);
+    // connectors as they sit in the drawer, slots open so the walls show inside
     CS = dd(L, "conns");
     for (k = [0 : 1 : len(CS) - 1]) let(c = CS[k])
         color(len(search(k, CLASH)) ? "#d03030" : c[5] ? "#b07a3c" : c[4] != "" ? "#d4570f" : "#f07020")
-            translate([c[1], c[2], 0]) linear_extrude(H) dd_connector_outline(c[3], P);
+            translate([c[1], c[2], 0])
+                dd_connector_installed(c[3], c[4], dd_cap(P, c[4] != ""), P);
     // rails
     for (r = dd(L, "rails")) color("#7f93ad")
         if (r[0] == "L") translate([0, r[1], 0]) cube([RAIL_T, r[3], RAIL_W]);
@@ -402,7 +403,8 @@ module dd_connector_custom(arms = [1,1,1,1], slots = undef, through_y = false,
 module dd_connector_outline(arms, p) {
     aw = dd_arm_w(p);
     dd_round_convex(dd(p, "edge_r"))
-    dd_round_concave(dd(p, "fillet"))
+    // a fillet longer than the free arm would swallow the arm ends
+    dd_round_concave(min(dd(p, "fillet"), dd(p, "arm") - aw / 2))
     union() {
         square(aw, center = true);
         for (i = [0:3]) if (arms[i])
@@ -433,6 +435,23 @@ module dd_slot_cut(x0, x1, z0, p) {
 
 // footprint size, used to space copies on the plate
 function dd_connector_size(p) = 2 * dd(p, "arm");
+
+// A connector as it sits in the drawer (cap on top), for assembly previews.
+// The slots stay open so the walls show inside them; through = "x"|"y"|"" for slip-on.
+module dd_connector_installed(arms, through = "", cap = 0, p = dd_profile()) {
+    h   = dd(p, "height");
+    arm = dd(p, "arm");
+    ps  = dd_pocket_start(p);
+    sw  = dd_slot_w(p);
+    linear_extrude(h - cap) difference() {
+        dd_connector_outline(arms, p);
+        for (i = [0:3]) if (arms[i])
+            rotate(90 * i) translate([ps, -sw / 2]) square([arm + 1 - ps, sw]);
+        if (through != "")
+            rotate(through == "x" ? 0 : 90) square([2 * arm + 2, sw], center = true);
+    }
+    if (cap > 0) translate([0, 0, h - cap]) linear_extrude(cap) dd_connector_outline(arms, p);
+}
 
 // =============================================================================
 //  Walls
@@ -544,7 +563,8 @@ module dd_rail(length, width, p = dd_profile(), plate = 2.5, tooth_t = 2,
         }
         // screws sit in the middle of a slot so they damage as few teeth as possible
         if (screws > 0) for (s = [1 : screws]) {
-            k  = round((length * s / (screws + 1) - x0 - tooth_t - sw / 2) / pitch);
+            // nearest slot, kept on the rail when it is short
+            k  = max(0, min(n - 2, round((length * s / (screws + 1) - x0 - tooth_t - sw / 2) / pitch)));
             xs = x0 + tooth_t + sw / 2 + k * pitch;
             cs = min(1.5, plate - 0.4);
             translate([xs, width / 2, 0]) {

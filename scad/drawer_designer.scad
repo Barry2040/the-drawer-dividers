@@ -187,16 +187,17 @@ module assembly() {
         color("#6b6358") translate([(c[0] + c[2]) / 2, (c[1] + c[3]) / 2, 0.01])
             linear_extrude(0.4) text(str(round(c[4]), " x ", round(c[5])), size = sz, halign = "center", valign = "center");
     }
-    // walls
+    // walls, with their pattern and grip
     for (w = dd(L, "walls")) if (w[4] > 0)
         color(too_short(w) ? "#d03030" : "#5a6a80")
-            if (w[0] == "x") translate([w[2], w[1] - T / 2, 0]) cube([w[4], T, WALL_H]);
-            else translate([w[1] - T / 2, w[2], 0]) cube([T, w[4], WALL_H]);
-    // connectors (simplified, as they sit in the drawer)
+            translate(w[0] == "x" ? [(w[2] + w[3]) / 2, w[1], 0] : [w[1], (w[2] + w[3]) / 2, 0])
+                rotate(w[0] == "x" ? 0 : 90) wall_part(w[4]);
+    // connectors as they sit in the drawer, slots open so the walls show inside
     CS = dd(L, "conns");
     for (k = [0 : 1 : len(CS) - 1]) let(c = CS[k])
         color(len(search(k, CLASH)) ? "#d03030" : c[5] ? "#b07a3c" : c[4] != "" ? "#d4570f" : "#f07020")
-            translate([c[1], c[2], 0]) linear_extrude(H) dd_connector_outline(c[3], P);
+            translate([c[1], c[2], 0])
+                dd_connector_installed(c[3], c[4], dd_cap(P, c[4] != ""), P);
     // rails
     for (r = dd(L, "rails")) color("#7f93ad")
         if (r[0] == "L") translate([0, r[1], 0]) cube([RAIL_T, r[3], RAIL_W]);

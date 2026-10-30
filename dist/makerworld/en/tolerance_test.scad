@@ -150,7 +150,8 @@ module dd_connector_custom(arms = [1,1,1,1], slots = undef, through_y = false,
 module dd_connector_outline(arms, p) {
     aw = dd_arm_w(p);
     dd_round_convex(dd(p, "edge_r"))
-    dd_round_concave(dd(p, "fillet"))
+    // a fillet longer than the free arm would swallow the arm ends
+    dd_round_concave(min(dd(p, "fillet"), dd(p, "arm") - aw / 2))
     union() {
         square(aw, center = true);
         for (i = [0:3]) if (arms[i])
@@ -181,6 +182,23 @@ module dd_slot_cut(x0, x1, z0, p) {
 
 // footprint size, used to space copies on the plate
 function dd_connector_size(p) = 2 * dd(p, "arm");
+
+// A connector as it sits in the drawer (cap on top), for assembly previews.
+// The slots stay open so the walls show inside them; through = "x"|"y"|"" for slip-on.
+module dd_connector_installed(arms, through = "", cap = 0, p = dd_profile()) {
+    h   = dd(p, "height");
+    arm = dd(p, "arm");
+    ps  = dd_pocket_start(p);
+    sw  = dd_slot_w(p);
+    linear_extrude(h - cap) difference() {
+        dd_connector_outline(arms, p);
+        for (i = [0:3]) if (arms[i])
+            rotate(90 * i) translate([ps, -sw / 2]) square([arm + 1 - ps, sw]);
+        if (through != "")
+            rotate(through == "x" ? 0 : 90) square([2 * arm + 2, sw], center = true);
+    }
+    if (cap > 0) translate([0, 0, h - cap]) linear_extrude(cap) dd_connector_outline(arms, p);
+}
 
 // =============================================================================
 //  Walls
@@ -292,7 +310,8 @@ module dd_rail(length, width, p = dd_profile(), plate = 2.5, tooth_t = 2,
         }
         // screws sit in the middle of a slot so they damage as few teeth as possible
         if (screws > 0) for (s = [1 : screws]) {
-            k  = round((length * s / (screws + 1) - x0 - tooth_t - sw / 2) / pitch);
+            // nearest slot, kept on the rail when it is short
+            k  = max(0, min(n - 2, round((length * s / (screws + 1) - x0 - tooth_t - sw / 2) / pitch)));
             xs = x0 + tooth_t + sw / 2 + k * pitch;
             cs = min(1.5, plate - 0.4);
             translate([xs, width / 2, 0]) {

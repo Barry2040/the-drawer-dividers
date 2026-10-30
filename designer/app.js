@@ -350,13 +350,16 @@ function findCompartments(S, g, H0, V0) {
 // ---------------------------------------------------------------------------
 // Connector outline (used for SVG, 3D and volume)
 // ---------------------------------------------------------------------------
-function connOutline(arms, g, p, segs = 8) {
+// slotted = true cuts the open wall slots into the arm ends (3D view of normal connectors)
+function connOutline(arms, g, p, segs = 8, slotted = false) {
   const a = g.armW / 2, L = p.arm, r = Math.max(0, Math.min(p.fillet, L - a));
   const rot = (i, x, y) => [[x, y], [-y, x], [-x, -y], [y, -x]][i];
+  const ps = L - p.insert, h = g.slotW / 2;
   const pts = [];
   for (let i = 0; i < 4; i++) {
     const j = (i + 1) % 4;
-    if (arms[i]) pts.push(rot(i, L, -a), rot(i, L, a));
+    if (arms[i] && slotted) pts.push(rot(i, L, -a), rot(i, L, -h), rot(i, ps, -h), rot(i, ps, h), rot(i, L, h), rot(i, L, a));
+    else if (arms[i]) pts.push(rot(i, L, -a), rot(i, L, a));
     if (arms[i] && arms[j] && r > 0) {
       for (let k = 0; k <= segs; k++) {
         const t = -Math.PI / 2 - (Math.PI / 2) * k / segs;
@@ -384,17 +387,28 @@ function connVolume(type, g, p) {
   const slotA = slip ? g.slotW * (2 * p.arm + (n - 2) * p.insert) : g.slotW * p.insert * n;
   return polyArea(connOutline(arms, g, p)) * p.height - slotA * (p.height - cap);
 }
-function wallHoleFraction(len, h, S) {
-  const st = S.settings, p = S.profile;
-  if (st.pattern === 'none') return 0;
-  const cell = 8, web = 2, hex = st.pattern === 'hex', ms = p.insert + 2, mb = 5, mt = 5 + st.grip;
+// Hole centres of the wall pattern, same layout as dd_wall_pattern():
+// x from the wall centre, z from the bottom.
+function wallHoles(len, h, S) {
+  const st = S.settings, p = S.profile, cell = 8, web = 2, hex = st.pattern === 'hex';
+  const out = { hex, cell, pts: [] };
+  if (st.pattern !== 'hex' && st.pattern !== 'circle') return out;
+  const ms = p.insert + 2, mb = 5, mt = 5 + st.grip;
   const Dz = hex ? cell * Math.sqrt(3) + web : 2 * cell + web, ez = hex ? cell * Math.sqrt(3) / 2 : cell;
   const maxW = len - 2 * ms - 2 * cell, maxH = h - mb - mt - 2 * ez;
-  if (maxW < 0 || maxH < 0) return 0;
+  if (maxW < 0 || maxH < 0) return out;
   const stagger = maxH >= Dz / 2, sx = stagger ? Dz * Math.sqrt(3) / 2 : 2 * cell + web;
-  const cols = Math.floor(maxW / sx) + 1, rows = Math.floor((maxH - (stagger && cols > 1 ? Dz / 2 : 0)) / Dz) + 1;
+  const cols = Math.floor(maxW / sx) + 1, st2 = stagger && cols > 1;
+  const rows = Math.floor((maxH - (st2 ? Dz / 2 : 0)) / Dz) + 1;
+  const pw = (cols - 1) * sx, ph = (rows - 1) * Dz + (st2 ? Dz / 2 : 0), z0 = mb + ez + (maxH - ph) / 2;
+  for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++)
+    out.pts.push([-pw / 2 + c * sx, z0 + r * Dz + (st2 && c % 2 ? Dz / 2 : 0)]);
+  return out;
+}
+function wallHoleFraction(len, h, S) {
+  const { hex, cell, pts } = wallHoles(len, h, S);
   const holeA = hex ? 1.5 * Math.sqrt(3) * cell * cell : Math.PI * cell * cell;
-  return Math.min(0.6, cols * rows * holeA / (len * h));
+  return Math.min(0.6, pts.length * holeA / (len * h));
 }
 
 function buildBom(S, g, nodes, pieces, rails) {
@@ -1315,7 +1329,7 @@ function build3D(resetCam) {
   group.traverse(o => { if (o.geometry) o.geometry.dispose(); });
   group.clear();
   const mat = c => new THREE.MeshStandardMaterial({ color: new THREE.Color(css(c)), roughness: 0.7 });
-  const mWall = mat('--wall'), mConn = mat('--conn'), mSlip = mat('--conn-slip'), mJoint = mat('--joint'), mRail = mat('--rail');
+  const mWall = mat('--wall'), mConn = mat('--conn'), mSlip = mat('--conn-slip'), mJoint = mat('--joint'), mRail = mat('--rail'), mBad = mat('--err');
   const box = (w, h, d, x, y, z, m) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); group.add(o); };
   // drawer
   const dh = S.drawer.h, wt = 8;
@@ -1324,18 +1338,39 @@ function build3D(resetCam) {
   box(W + 2 * wt, wt, D + 2 * wt, W / 2, -wt / 2, D / 2, mDrawer);
   box(wt, dh, D + 2 * wt, -wt / 2, dh / 2, D / 2, mGlass); box(wt, dh, D + 2 * wt, W + wt / 2, dh / 2, D / 2, mGlass);
   box(W, dh, wt, W / 2, dh / 2, -wt / 2, mGlass); box(W, dh * 0.6, wt, W / 2, dh * 0.3, D + wt / 2, mGlass);
-  // walls
+  // walls, with the hole pattern and grip they are printed with
+  const V2 = (x, y) => new THREE.Vector2(x, y);
   for (const pc of A.pieces) if (pc.len > 0) {
+    const L = pc.len, h = g.wallH, gr = Math.min(st.grip, L / 2 - 1, h - 1);
+    const outline = [V2(-L / 2, 0), V2(L / 2, 0), V2(L / 2, h)];
+    if (gr > 0) for (let k = 0; k <= 16; k++) { const t = -Math.PI * k / 16; outline.push(V2(gr * Math.cos(t), h + gr * Math.sin(t))); }
+    outline.push(V2(-L / 2, h));
+    const shape = new THREE.Shape(outline), holes = wallHoles(L, h, S);
+    for (const [hx, hz] of holes.pts) {
+      const n = holes.hex ? 6 : 24;
+      shape.holes.push(new THREE.Path([...Array(n)].map((_, k) => V2(hx + holes.cell * Math.cos(2 * Math.PI * k / n), hz + holes.cell * Math.sin(2 * Math.PI * k / n)))));
+    }
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: g.t, bevelEnabled: false, curveSegments: 1 });
+    geo.translate(0, 0, -g.t / 2);
+    if (pc.o === 'v') geo.rotateY(-Math.PI / 2);
+    const o = new THREE.Mesh(geo, pc.bad ? mBad : mWall);
     const m = (pc.s + pc.e) / 2;
-    if (pc.o === 'h') box(pc.len, g.wallH, g.t, m, g.wallH / 2, pc.c, mWall); else box(g.t, g.wallH, pc.len, pc.c, g.wallH / 2, m, mWall);
+    if (pc.o === 'h') o.position.set(m, 0, pc.c); else o.position.set(pc.c, 0, m);
+    group.add(o);
   }
-  // connectors
-  for (const n of A.nodes) if (n.kind === 'conn') {
-    const shape = new THREE.Shape(connOutline(n.dirs, g, p).map(([x, y]) => new THREE.Vector2(x, -y)));
-    const geo = new THREE.ExtrudeGeometry(shape, { depth: p.height, bevelEnabled: false });
+  // connectors: normal ones with their open slots, so the walls sit visibly inside them
+  // (a solid body would share its top face with the walls and flicker)
+  const extrude = (pts, depth, y0, m, n) => {
+    const geo = new THREE.ExtrudeGeometry(new THREE.Shape(pts.map(([x, y]) => V2(x, -y))), { depth, bevelEnabled: false });
     geo.rotateX(-Math.PI / 2);
-    const o = new THREE.Mesh(geo, n.joint ? mJoint : n.type.startsWith('slip') ? mSlip : mConn);
-    o.position.set(n.x, 0, n.y); group.add(o);
+    const o = new THREE.Mesh(geo, m); o.position.set(n.x, y0, n.y); group.add(o);
+  };
+  for (const n of A.nodes) if (n.kind === 'conn') {
+    const m = n.clash ? mBad : n.joint ? mJoint : n.type.startsWith('slip') ? mSlip : mConn;
+    if (n.type.startsWith('slip')) { extrude(connOutline(n.dirs, g, p), p.height, 0, m, n); continue; }
+    const cap = Math.min(p.cap, p.height - 1);
+    extrude(connOutline(n.dirs, g, p, 8, true), p.height - cap, 0, m, n);
+    if (cap > 0) extrude(connOutline(n.dirs, g, p), cap, p.height - cap, m, n);
   }
   // rails
   for (const r of A.rails) {
