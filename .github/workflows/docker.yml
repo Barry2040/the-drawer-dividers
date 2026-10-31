@@ -5,9 +5,9 @@ name: Docker-Image
 on:
   push:
     branches: [main]
-    paths: ["Drawer-Divider-Designer.html", "pwa/**", "Dockerfile", ".dockerignore", ".github/workflows/docker.yml"]
+    paths: ["Drawer-Divider-Designer.html", "pwa/**", "fonts/**", "Dockerfile", ".dockerignore", ".github/workflows/docker.yml"]
   pull_request:
-    paths: ["Drawer-Divider-Designer.html", "pwa/**", "Dockerfile", ".dockerignore", ".github/workflows/docker.yml"]
+    paths: ["Drawer-Divider-Designer.html", "pwa/**", "fonts/**", "Dockerfile", ".dockerignore", ".github/workflows/docker.yml"]
   workflow_dispatch:
 
 permissions:

@@ -251,6 +251,7 @@ designer/                     HTML-Designer, Quelle
   stl.js                      STL-Erzeugung mit OpenSCAD im Browser, ZIP- und 3MF-Download
   scad_lib.js                 eingebettete SCAD-Bibliothek (wird erzeugt)
 pwa/                          App-Dateien neben der Online-Seite: Manifest, Offline-Cache (sw.js), Icons
+fonts/                        Liberation Sans (SIL OFL) – Schrift für Gravuren beim STL-Erzeugen im Browser
 scad/
   drawer_designer.scad        SCAD-Designer
   connector.scad              Einzelteile: Verbinder

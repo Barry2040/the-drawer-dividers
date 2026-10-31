@@ -76,7 +76,8 @@ def inline(src: str, translate: bool) -> str:
 
 def translate_options(opts: str, var: str) -> str:
     # only "value:Label" lists carry text; ranges like 1:1:40 stay as they are
-    parts = [p.strip() for p in opts.split(",")]
+    # split only before the next "value:" so commas inside a label stay, e.g. "Standing (strong, fast)"
+    parts = [p.strip() for p in re.split(r",(?=\s*[\w.-]+:)", opts)]
     if not all(":" in p for p in parts) or re.fullmatch(r"[-\d.]+(:[-\d.]+){1,2}", opts.strip()):
         return opts
     res = []

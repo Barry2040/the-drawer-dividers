@@ -14,6 +14,7 @@ ADD $CDN/three@0.160.0/build/three.module.js /site/vendor/three.module.js
 ADD $CDN/three@0.160.0/examples/jsm/controls/OrbitControls.js /site/vendor/OrbitControls.js
 COPY Drawer-Divider-Designer.html /site/index.html
 COPY pwa/ /site/
+COPY fonts/ /site/fonts/
 RUN set -e; cd /site; \
     sed -i -e "s#$CDN/openscad-wasm-prebuilt@1.2.0/dist/openscad.js#./vendor/openscad.js#" \
            -e "s#$CDN/three@0.160.0/build/three.module.js#./vendor/three.module.js#" \

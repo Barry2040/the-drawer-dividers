@@ -5,16 +5,33 @@
 
 // absolute, because the worker runs from a blob: URL (the Docker image swaps in a local path)
 const OPENSCAD_URL = new URL('https://cdn.jsdelivr.net/npm/openscad-wasm-prebuilt@1.2.0/dist/openscad.js', location.href).href;
+// The WASM build ships without fonts, so text() (wall letters, clip names) would come out empty.
+// Liberation Sans is OpenSCAD's default font: next to the page (Pages, Docker), next to dev.html, or from the repo.
+const FONT_URLS = ['fonts/LiberationSans-Regular.ttf', '../fonts/LiberationSans-Regular.ttf']
+  .map(u => new URL(u, location.href).href).filter(u => u.startsWith('http'))
+  .concat('https://cdn.jsdelivr.net/gh/Barry2040/the-drawer-dividers@main/fonts/LiberationSans-Regular.ttf');
 
 // Runs inside the worker (or on the main thread if workers are unavailable).
 // Messages in:  {type:'run', scad, plates:[{num,label}]}
 // Messages out: {type:'status'|'start'|'done'|'fail'|'finished', ...}
 const ENGINE_SRC = `
-let mod = null, job = '', flags = null, errs = [];
+let mod = null, job = '', flags = null, errs = [], font = null;
+async function loadFont() {
+  for (const u of ${JSON.stringify(FONT_URLS)}) {
+    try { const r = await fetch(u); if (r.ok) return new Uint8Array(await r.arrayBuffer()); } catch (e) { /* next source */ }
+  }
+  return false;
+}
 async function fresh() {
   const { createOpenSCAD } = await import('${OPENSCAD_URL}');
   const os = await createOpenSCAD({ print: () => {}, printErr: s => errs.push(s) });
   mod = os.getInstance();
+  if (font === null) font = await loadFont();
+  if (font) {
+    try { mod.FS.mkdir('/fonts'); } catch (e) { /* exists */ }
+    mod.FS.writeFile('/fonts/fonts.conf', '<?xml version="1.0"?><fontconfig><dir>/fonts</dir></fontconfig>');
+    mod.FS.writeFile('/fonts/LiberationSans-Regular.ttf', font);
+  }
   mod.FS.writeFile('/job.scad', job);
 }
 async function render(num) {

@@ -14,7 +14,7 @@ Anzahl = 1; // [1:1:40]
 // Abstand zwischen den Teilen (mm)
 Abstand = 5; // [2:1:20]
 // Ausrichtung auf dem Druckbett
-Ausrichtung = "standing"; // [standing:Standing (strong, fast), flat:Flat (best with patterns)]
+Ausrichtung = "standing"; // [standing:Stehend, flat:Liegend]
 
 /* [Gestaltung] */
 // Muster zur Materialersparnis

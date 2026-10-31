@@ -251,6 +251,7 @@ designer/                     HTML designer, source
   stl.js                      STL rendering with OpenSCAD in the browser, ZIP and 3MF download
   scad_lib.js                 embedded SCAD library (generated)
 pwa/                          app files next to the online page: manifest, offline cache (sw.js), icons
+fonts/                        Liberation Sans (SIL OFL) – font for engravings when making STLs in the browser
 scad/
   drawer_designer.scad        SCAD designer
   connector.scad              single parts: connectors
