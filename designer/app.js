@@ -43,7 +43,8 @@ const clipName = x => T('Beschriftungsclip') + (x.label ? ' ' + quote(x.label) :
 function defaultSettings() {
   return { border: 'frame', slip: false, autoH: true, maxLen: 240, grid: 5, bed: 256, borderGap: 0.5, noneGap: 1,
            pattern: 'hex', orient: 'standing', grip: 0, density: '1.24', labels: true, clips: false,
-           railPlate: 2.5, toothT: 2, toothH: 6, pack: 'mixed', price: 25, currency: '€', rate: 20 };
+           railPlate: 2.5, toothT: 2, toothH: 6, pack: 'mixed', price: 25, currency: '€', rate: 20,
+           laserW: 300, laserH: 300, laserKerf: 0.1, laserGap: 3, laserPattern: true, laserEngrave: true };
 }
 function defaultState() {
   return { version: 3, name: T('Meine Schublade'), drawer: { w: 400, d: 300, h: 60, r: 0 },
@@ -1747,6 +1748,7 @@ for (const b of $$('[data-export]')) b.addEventListener('click', () => {
     else flash(T('Noch keine Fächer – zeichne zuerst Wände in die Schublade.'));
   }
   if (k === 'scad') download(fileBase() + '_druckjob.scad', jobScad(), 'text/plain');
+  if (k === 'laser') openLaser();
   if (k === 'print') window.print();
   if (k === 'offline') saveOffline();
   if (k === 'link') shareLink();

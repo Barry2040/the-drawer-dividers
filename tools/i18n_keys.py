@@ -120,7 +120,7 @@ SAME = {"Drawer Divider", "Drawer Divider Designer", "EN", "Designer", "PLA", "P
 
 def main():
     want = []
-    for f in ("app.js", "stl.js"):
+    for f in ("app.js", "stl.js", "laser.js"):
         want += js_keys((DESIGNER / f).read_text(encoding="utf-8"))
     p = Texts()
     p.feed((DESIGNER / "dev.html").read_text(encoding="utf-8"))

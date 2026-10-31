@@ -47,6 +47,7 @@
 | 🧊 **3D-Vorschau** | Der ganze Zusammenbau in 3D, inklusive Muster |
 | 🖨️ **STLs im Browser** | OpenSCAD läuft direkt in der Seite und rechnet jede Druckplatte passend zu deinem Druckbett. Die Teile werden gemischt dicht gepackt (weniger Platten) – oder sortenrein |
 | 📦 **3MF & ZIP** | Alle Platten in einer 3MF-Datei (Bambu Studio, OrcaSlicer, PrusaSlicer) oder als ZIP mit STLs, Stückliste und Projekt |
+| 🔥 **Laserdateien** | Wände aus Holz oder Acryl lasern: *Export → Laserdateien (SVG)* verteilt alle Wände mit Muster und Griffmulde auf Platten deiner Größe – rot schneiden, blau gravieren (Buchstabe und Länge als Linienschrift). Für Bambu Studio (Laser), LightBurn, xTool. Wandstärke = Plattenstärke, die Verbinder werden gedruckt |
 | 📋 **Aufbauplan** | Zum Ausdrucken oder als PDF: Zeichnung mit Wandbuchstaben, Teileliste und Aufbauschritte |
 | 🔗 **Link teilen** | Das ganze Layout steckt im Link – zum Verschicken oder für MakerWorld |
 | ✅ **Druck-Checkliste** | Die Druckplatten zum Abhaken – praktisch, wenn der Druck über mehrere Tage geht |
@@ -249,6 +250,7 @@ designer/                     HTML-Designer, Quelle
   i18n.js                     Sprache: englische Texte, Umschalter DE/EN
   app.js                      Planung, Stückliste, Prüfungen, 3D-Vorschau, Aufbauplan, Druckjob
   stl.js                      STL-Erzeugung mit OpenSCAD im Browser, ZIP- und 3MF-Download
+  laser.js                    Laserdateien (SVG) für Wände aus Holz oder Acryl
   scad_lib.js                 eingebettete SCAD-Bibliothek (wird erzeugt)
 pwa/                          App-Dateien neben der Online-Seite: Manifest, Offline-Cache (sw.js), Icons
 fonts/                        Liberation Sans (SIL OFL) – Schrift für Gravuren beim STL-Erzeugen im Browser

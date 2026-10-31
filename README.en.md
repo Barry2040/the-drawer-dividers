@@ -47,6 +47,7 @@
 | 🧊 **3D preview** | The whole assembly in 3D, patterns included |
 | 🖨️ **STLs in the browser** | OpenSCAD runs right in the page and renders every print plate to fit your bed. Parts are packed tightly and mixed (fewer plates) – or one kind per plate |
 | 📦 **3MF & ZIP** | All plates in one 3MF file (Bambu Studio, OrcaSlicer, PrusaSlicer) or a ZIP with STLs, parts list and project |
+| 🔥 **Laser files** | Laser the walls from wood or acrylic: *Export → Laser files (SVG)* lays out every wall with pattern and finger grip on sheets of your size – red is cut, blue is engraved (letter and length as stroke lines). For Bambu Studio (laser), LightBurn, xTool. Wall thickness = sheet thickness, the connectors are printed |
 | 📋 **Assembly plan** | To print or save as PDF: drawing with wall letters, parts list and assembly steps |
 | 🔗 **Share link** | The whole layout is in the link – to send around or for MakerWorld |
 | ✅ **Print checklist** | Tick off the print plates – handy when printing takes several days |
@@ -249,6 +250,7 @@ designer/                     HTML designer, source
   i18n.js                     language: English texts, DE/EN switch
   app.js                      planning, parts list, checks, 3D preview, assembly plan, print job
   stl.js                      STL rendering with OpenSCAD in the browser, ZIP and 3MF download
+  laser.js                    laser files (SVG) for walls cut from wood or acrylic
   scad_lib.js                 embedded SCAD library (generated)
 pwa/                          app files next to the online page: manifest, offline cache (sw.js), icons
 fonts/                        Liberation Sans (SIL OFL) – font for engravings when making STLs in the browser

@@ -193,6 +193,14 @@ dialog::backdrop { background: rgba(0,0,0,.3); }
 dialog h3 { margin: 0 0 12px; font-size: 15px; }
 #stlDlg { width: 520px; max-width: calc(100vw - 32px); }
 #bgDlg { width: 600px; max-width: calc(100vw - 32px); }
+#laserDlg { width: 560px; max-width: calc(100vw - 32px); }
+#lzCount { font-weight: 500; color: var(--muted); font-size: 13px; margin-left: 6px; }
+#lzWarn { color: var(--err); }
+#lzList { max-height: 40vh; overflow: auto; margin-top: 10px; display: grid; gap: 8px; }
+.lz-sheet { display: grid; grid-template-columns: 120px 1fr auto; gap: 12px; align-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 8px; }
+.lz-sheet img { width: 120px; max-height: 120px; object-fit: contain; background: #fff; border-radius: 4px; }
+.lz-sheet small { display: block; color: var(--muted); }
+.lz-sheet .btn { padding: 3px 10px; font-size: 12px; }
 #bgStage { margin-top: 10px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel-2); }
 #bgCanvas { display: block; width: 100%; cursor: crosshair; touch-action: none; }
 #printList { max-height: 260px; overflow: auto; margin-top: 6px; }
@@ -279,6 +287,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
     <div class="menu-pop">
       <button data-export="scad"><b>OpenSCAD-Druckjob</b><small>Alle Teile in einer .scad – Teil wählen, STL exportieren</small></button>
       <button data-export="link"><b>Link teilen</b><small>Das ganze Layout steckt im Link – zum Verschicken oder für MakerWorld</small></button>
+      <button data-export="laser"><b>Laserdateien (SVG)</b><small>Wände aus Holz oder Acryl lasern – die Verbinder druckst du</small></button>
       <button data-export="csv"><b>Stückliste (CSV)</b><small>Für Excel / Tabellen</small></button>
       <button data-export="labels"><b>Etiketten-Liste (CSV)</b><small>Fachnamen und Maße – in Open Label Studio unter Seriendruck laden</small></button>
       <button data-export="print"><b>Aufbauplan drucken / PDF</b><small>Plan mit Wandbuchstaben, Teileliste und Aufbauschritte</small></button>
@@ -526,6 +535,25 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
   <div class="actions"><button class="btn" id="stlClose">Schließen</button><button class="btn" id="stl3mf" disabled title="Alle Platten in einer Datei für Bambu Studio, OrcaSlicer, PrusaSlicer">3MF herunterladen</button><button class="btn primary" id="stlZip" disabled>ZIP herunterladen</button></div>
 </dialog>
 
+<dialog id="laserDlg">
+  <h3>Wände lasern <b id="lzCount"></b></h3>
+  <p class="hint" style="margin:0 0 10px">Jede Wand als Umriss mit Muster und Griffmulde, auf Platten verteilt: rot wird geschnitten, blau graviert (Buchstabe und Länge). Läuft in Bambu Studio (Laser), LightBurn, xTool und Co.</p>
+  <p class="hint" id="lzThick" style="margin:0 0 10px"></p>
+  <div class="row2">
+    <label class="field"><span>Plattenbreite</span><div class="unit" data-u="mm"><input type="number" id="lzW" min="50" step="1"></div></label>
+    <label class="field"><span>Plattenhöhe</span><div class="unit" data-u="mm"><input type="number" id="lzH" min="50" step="1"></div></label>
+  </div>
+  <div class="row2">
+    <label class="field" title="Breite des Laserstrahls – der Umriss wird um die Hälfte größer, die Löcher kleiner, damit die Teile maßhaltig sind"><span>Schnittbreite (Kerf)</span><div class="unit" data-u="mm"><input type="number" id="lzKerf" min="0" max="1" step="0.05"></div></label>
+    <label class="field"><span>Abstand zwischen Teilen</span><div class="unit" data-u="mm"><input type="number" id="lzGap" min="0" step="0.5"></div></label>
+  </div>
+  <label class="check"><input type="checkbox" id="lzPattern"><span>Muster mitschneiden<small>Waben oder Kreise wie bei den gedruckten Wänden</small></span></label>
+  <label class="check"><input type="checkbox" id="lzEngrave"><span>Buchstabe und Länge gravieren<small>Als Linien, damit keine Schriftart nötig ist</small></span></label>
+  <p class="hint warn" id="lzWarn" hidden></p>
+  <div id="lzList"></div>
+  <div class="actions"><button class="btn" id="lzClose">Schließen</button><button class="btn primary" id="lzZip">Alle herunterladen</button></div>
+</dialog>
+
 <dialog id="askDlg">
   <h3 id="askTitle"></h3>
   <p class="hint" id="askText" style="margin:0 0 10px"></p>
@@ -537,6 +565,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
 <script src="scad_lib.js"></script>
 <script src="app.js"></script>
 <script src="stl.js"></script>
+<script src="laser.js"></script>
 <script>
   // opened on its own without the .js files next to it: say which file to use instead
   if (typeof analyze !== 'function') document.body.innerHTML = '<div style="max-width:560px;margin:15vh auto;padding:24px;font:15px system-ui;line-height:1.5">'
