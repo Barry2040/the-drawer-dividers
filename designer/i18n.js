@@ -292,6 +292,12 @@ const EN = {
   '{} Wände ausgewählt': '{} walls selected',
   '{} liegt auf einer Wand.': '{} lies on a wall.',
   'Übernehmen': 'Apply',
+  // reset everything
+  'Zurücksetzen': 'Reset',
+  'Alles auf Standard zurücksetzen: Schubladen, Profile, Fotos und Einstellungen': 'Reset everything to default: drawers, profiles, photos and settings',
+  'Alles auf Standard zurücksetzen?': 'Reset everything to default?',
+  'Alle Schubladen, Profile und Fotos in diesem Browser werden gelöscht und alle Einstellungen auf Standard gesetzt. Wenn du etwas behalten willst, vorher unter „Schubladen“ alle speichern.': 'All drawers, profiles and photos in this browser are deleted and every setting goes back to default. To keep anything, save all drawers under “Drawers” first.',
+  'Alles zurücksetzen': 'Reset everything',
 };
 
 function T(strs, ...vals) {

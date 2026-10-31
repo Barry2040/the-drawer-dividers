@@ -270,6 +270,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
   </div>
   <div class="spacer"></div>
   <button class="btn" id="btnLang" title="Sprache / Language">EN</button>
+  <button class="btn" id="btnReset" title="Alles auf Standard zurücksetzen: Schubladen, Profile, Fotos und Einstellungen">Zurücksetzen</button>
   <button class="btn" id="btnNew" title="Neues Projekt">Neu</button>
   <button class="btn" id="btnOpen" title="Projekt öffnen (.json)">Öffnen</button>
   <button class="btn" id="btnSave" title="Projekt speichern (.json)">Speichern</button>
@@ -829,6 +830,12 @@ const EN = {
   '{} Wände ausgewählt': '{} walls selected',
   '{} liegt auf einer Wand.': '{} lies on a wall.',
   'Übernehmen': 'Apply',
+  // reset everything
+  'Zurücksetzen': 'Reset',
+  'Alles auf Standard zurücksetzen: Schubladen, Profile, Fotos und Einstellungen': 'Reset everything to default: drawers, profiles, photos and settings',
+  'Alles auf Standard zurücksetzen?': 'Reset everything to default?',
+  'Alle Schubladen, Profile und Fotos in diesem Browser werden gelöscht und alle Einstellungen auf Standard gesetzt. Wenn du etwas behalten willst, vorher unter „Schubladen“ alle speichern.': 'All drawers, profiles and photos in this browser are deleted and every setting goes back to default. To keep anything, save all drawers under “Drawers” first.',
+  'Alles zurücksetzen': 'Reset everything',
 };
 
 function T(strs, ...vals) {
@@ -2572,6 +2579,14 @@ $('#btnNew').addEventListener('click', async () => {
   if (!await ask(T('Neues Projekt beginnen?'), { text: T('Alle Wände werden entfernt. Schublade und Einstellungen bleiben.'), ok: T('Neu beginnen') })) return;
   mutate(() => { const keep = { drawer: S.drawer, profile: S.profile, preset: S.preset, settings: S.settings }; S = { ...defaultState(), ...JSON.parse(JSON.stringify(keep)) }; });
   syncInputs(); fit();
+});
+// everything back to how the page looks on its first visit; only the language stays
+$('#btnReset').addEventListener('click', async () => {
+  if (!await ask(T('Alles auf Standard zurücksetzen?'), { text: T('Alle Schubladen, Profile und Fotos in diesem Browser werden gelöscht und alle Einstellungen auf Standard gesetzt. Wenn du etwas behalten willst, vorher unter „Schubladen“ alle speichern.'), ok: T('Alles zurücksetzen') })) return;
+  try {
+    for (const k of Object.keys(localStorage)) if (k.startsWith('dd-') && k !== 'dd-lang') localStorage.removeItem(k);
+  } catch { /* no storage: nothing kept anyway */ }
+  location.replace(location.pathname + location.search);   // without #p=…, which would add the shared layout again
 });
 $('#btnSave').addEventListener('click', () => download(fileBase() + '.json', JSON.stringify(S, null, 2), 'application/json'));
 $('#btnOpen').addEventListener('click', () => $('#fileIn').click());

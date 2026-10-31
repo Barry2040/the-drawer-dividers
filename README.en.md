@@ -135,7 +135,7 @@ V3 follows the MakerWorld projects [V1 – The Drawer Dividers](https://makerwor
 - **Advanced** – print bed, max. wall length, printing standing or lying flat, finger notch, snap grid, label clips, wall labels, all connector dimensions and the grid rail. *Reset everything to default* brings back the V2 values.
 - **My profile** – saves everything except drawer, edge and compartments under a name, e.g. for your printer.
 
-The designer saves your project automatically in the browser. *Save* / *Open* keep it as a `.json` file.
+The designer saves your project automatically in the browser. *Save* / *Open* keep it as a `.json` file. *Reset* deletes all drawers, profiles and photos in the browser and puts everything back to default – only the language stays.
 
 ## 🖨️ Printing tips
 

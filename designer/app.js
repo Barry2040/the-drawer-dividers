@@ -1713,6 +1713,14 @@ $('#btnNew').addEventListener('click', async () => {
   mutate(() => { const keep = { drawer: S.drawer, profile: S.profile, preset: S.preset, settings: S.settings }; S = { ...defaultState(), ...JSON.parse(JSON.stringify(keep)) }; });
   syncInputs(); fit();
 });
+// everything back to how the page looks on its first visit; only the language stays
+$('#btnReset').addEventListener('click', async () => {
+  if (!await ask(T('Alles auf Standard zurücksetzen?'), { text: T('Alle Schubladen, Profile und Fotos in diesem Browser werden gelöscht und alle Einstellungen auf Standard gesetzt. Wenn du etwas behalten willst, vorher unter „Schubladen“ alle speichern.'), ok: T('Alles zurücksetzen') })) return;
+  try {
+    for (const k of Object.keys(localStorage)) if (k.startsWith('dd-') && k !== 'dd-lang') localStorage.removeItem(k);
+  } catch { /* no storage: nothing kept anyway */ }
+  location.replace(location.pathname + location.search);   // without #p=…, which would add the shared layout again
+});
 $('#btnSave').addEventListener('click', () => download(fileBase() + '.json', JSON.stringify(S, null, 2), 'application/json'));
 $('#btnOpen').addEventListener('click', () => $('#fileIn').click());
 $('#fileIn').addEventListener('change', async e => {
