@@ -38,12 +38,19 @@
 | ⭕ **Runde Ecken** | Hat die Schublade innen runde Ecken, werden die Rahmenecken passend abgerundet |
 | 🏷️ **Fachnamen & Clips** | Fächer benennen (anklicken oder doppelklicken). Der Name steht im Plan und wird in den Beschriftungsclip graviert – oder als Etiketten-Liste für [Open Label Studio](https://github.com/Barry2040/open-label-studio) exportiert |
 | 📏 **Messen** | Abstände in der Zeichnung messen, rastet an Wänden und Raster ein |
+| 🔢 **Maße eintippen** | Wandposition oder Breite/Tiefe eines Fachs direkt eingeben – die Nachbarwand rückt nach. Mehrere Wände mit `Shift`+Klick wählen und **gleich verteilen** |
+| 🪜 **Wandhöhen** | Einzelne Wände niedriger machen, z. B. vorne zum besseren Hineingreifen |
+| ✂️ **Gegenstände einplanen** | Schere, Zollstock, Besteck … als Umriss in die Schublade legen und die Fächer drumherum zeichnen |
+| 📷 **Foto als Vorlage** | Foto der Schublade laden, vier Ecken anklicken – es wird gerade gerückt und zum Nachzeichnen hinterlegt |
+| 🔄 **Spiegeln & Drehen** | Für die Schublade auf der anderen Seite oder quer eingebaute Schubladen |
 | 🐝 **Wandmuster** | Waben, Kreise oder geschlossen – spart Filament und sieht gut aus |
 | 🧊 **3D-Vorschau** | Der ganze Zusammenbau in 3D, inklusive Muster |
 | 🖨️ **STLs im Browser** | OpenSCAD läuft direkt in der Seite und rechnet jede Druckplatte passend zu deinem Druckbett. Die Teile werden gemischt dicht gepackt (weniger Platten) – oder sortenrein |
 | 📦 **3MF & ZIP** | Alle Platten in einer 3MF-Datei (Bambu Studio, OrcaSlicer, PrusaSlicer) oder als ZIP mit STLs, Stückliste und Projekt |
 | 📋 **Aufbauplan** | Zum Ausdrucken oder als PDF: Zeichnung mit Wandbuchstaben, Teileliste und Aufbauschritte |
 | 🔗 **Link teilen** | Das ganze Layout steckt im Link – zum Verschicken oder für MakerWorld |
+| ✅ **Druck-Checkliste** | Die Druckplatten zum Abhaken – praktisch, wenn der Druck über mehrere Tage geht |
+| 📱 **Handy & App** | Zwei Finger zoomen und verschieben. Online lässt sich der Designer als App installieren und startet dann auch ohne Internet |
 | 🗄️ **Mehrere Schubladen** | Beliebig viele Schubladen im Browser, umschalten oben neben dem Namen – mit Gesamt-Stückliste über alle |
 | 💾 **Profile** | Toleranz, Druckbett und Co. für deinen Drucker speichern und bei der nächsten Schublade wieder laden |
 | 🌐 **Sprachen** | Deutsch und Englisch, umschaltbar oben rechts |
@@ -95,9 +102,12 @@ V3 ist der Nachfolger der MakerWorld-Projekte [V1 – The Drawer Dividers](https
    | 🗂️ Vorlage | – | fertige Aufteilung als Start |
    | ➗ Teilen | `S` | Anzahl wählen (`2`–`6` oder *frei*), Richtung wählen (`Shift` wechselt), in ein Fach klicken |
    | ✏️ Zeichnen | `W` | Wand mit der Maus ziehen |
-   | 👆 Auswählen | `V` | Wand anklicken und verschieben, `Entf` löscht sie. Fach anklicken, um es zu benennen |
+   | 👆 Auswählen | `V` | Wand anklicken und verschieben oder Position eintippen, `Entf` löscht sie. `Shift`+Klick wählt weitere Wände. Fach anklicken, um es zu benennen oder sein Maß einzugeben |
    | 🧽 Radieren | `E` | entfernt das Wandstück zwischen zwei Verbindern – so legst du auch zwei Fächer zusammen |
    | 📏 Messen | `M` | Abstand ziehen, `Shift` misst ohne Einrasten |
+   | ✂️ Gegenstand | `G` | Umriss einfügen (Vorlagen für Werkstatt, Küche, Büro) |
+   | 📷 Foto | – | Foto der Schublade als Vorlage hinterlegen |
+   | 🔄 Spiegeln / Drehen | – | ganzes Layout spiegeln oder um 90° drehen |
    | ↩️ Rückgängig | `Strg+Z` / `Strg+Y` | |
    | 🧊 3D | – | Vorschau des Zusammenbaus |
 
@@ -240,6 +250,7 @@ designer/                     HTML-Designer, Quelle
   app.js                      Planung, Stückliste, Prüfungen, 3D-Vorschau, Aufbauplan, Druckjob
   stl.js                      STL-Erzeugung mit OpenSCAD im Browser, ZIP- und 3MF-Download
   scad_lib.js                 eingebettete SCAD-Bibliothek (wird erzeugt)
+pwa/                          App-Dateien neben der Online-Seite: Manifest, Offline-Cache (sw.js), Icons
 scad/
   drawer_designer.scad        SCAD-Designer
   connector.scad              Einzelteile: Verbinder

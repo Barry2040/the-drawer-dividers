@@ -93,7 +93,7 @@ h4.sub { margin: 6px 0 8px; font-size: 11px; text-transform: uppercase; letter-s
 .hint { font-size: 11.5px; color: var(--muted); margin: 4px 0 0; }
 
 .stage { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.toolbar { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 4px; box-shadow: var(--shadow); z-index: 5; }
+.toolbar { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; max-width: calc(100% - 16px); width: max-content; gap: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 4px; box-shadow: var(--shadow); z-index: 5; }
 .tool { border: 0; background: none; padding: 6px 10px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 6px; color: var(--text); }
 .tool:hover { background: var(--panel-2); }
 .tool.on { background: var(--accent); color: #fff; }
@@ -147,6 +147,12 @@ h4.sub { margin: 6px 0 8px; font-size: 11px; text-transform: uppercase; letter-s
 .edge-label { font-size: 11px; fill: var(--muted); text-anchor: middle; letter-spacing: 1px; text-transform: uppercase; }
 .region-hl { fill: var(--accent); opacity: .08; pointer-events: none; }
 .region-hl.sel { fill: var(--sel); opacity: .14; }
+.wall.low { opacity: .5; }
+.item-box { fill: var(--sel); fill-opacity: .07; stroke: var(--sel); stroke-width: 1.5; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; }
+.item.sel .item-box { fill-opacity: .18; stroke-dasharray: none; stroke-width: 2; }
+.item.clash .item-box { stroke: var(--err); fill: var(--err); }
+.item-txt { fill: var(--sel); font-weight: 600; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+.bg-photo { pointer-events: none; }
 .comp-name { font-weight: 700; opacity: .9; }
 .measure { stroke: var(--sel); stroke-width: 2; vector-effect: non-scaling-stroke; }
 .measure-end { fill: var(--sel); }
@@ -186,6 +192,16 @@ dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--p
 dialog::backdrop { background: rgba(0,0,0,.3); }
 dialog h3 { margin: 0 0 12px; font-size: 15px; }
 #stlDlg { width: 520px; max-width: calc(100vw - 32px); }
+#bgDlg { width: 600px; max-width: calc(100vw - 32px); }
+#bgStage { margin-top: 10px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel-2); }
+#bgCanvas { display: block; width: 100%; cursor: crosshair; touch-action: none; }
+#printList { max-height: 260px; overflow: auto; margin-top: 6px; }
+#printList .check small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px; }
+#printSec summary { font-size: 11px; text-transform: uppercase; letter-spacing: .7px; color: var(--muted); font-weight: 650; }
+#printCount { margin-left: 6px; color: var(--text); text-transform: none; letter-spacing: 0; }
+#xfMenu .menu-pop { left: 50%; right: auto; transform: translateX(-50%); }
+.toolbar .menu { display: flex; }
+dialog .spacer { flex: 1; }
 #stlList { max-height: 50vh; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
 .stl-row { display: grid; grid-template-columns: 18px 1fr auto auto; gap: 10px; align-items: center; padding: 6px 10px; border-top: 1px solid var(--line); font-size: 13px; }
 .stl-row:first-child { border-top: 0; }
@@ -265,6 +281,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
       <button data-export="csv"><b>Stückliste (CSV)</b><small>Für Excel / Tabellen</small></button>
       <button data-export="labels"><b>Etiketten-Liste (CSV)</b><small>Fachnamen und Maße – in Open Label Studio unter Seriendruck laden</small></button>
       <button data-export="print"><b>Aufbauplan drucken / PDF</b><small>Plan mit Wandbuchstaben, Teileliste und Aufbauschritte</small></button>
+      <button data-export="install" hidden><b>Als App installieren</b><small>Mit eigenem Symbol, startet auch ohne Internet</small></button>
       <button data-export="offline" hidden><b>Offline-Version herunterladen</b><small>Der ganze Designer als eine Datei, läuft ohne Internet</small></button>
     </div>
   </div>
@@ -379,6 +396,16 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
       <button class="tool" id="btnUndo" title="Rückgängig (Strg+Z)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/></svg></button>
       <button class="tool" id="btnRedo" title="Wiederholen (Strg+Y)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 000 10h3"/></svg></button>
       <button class="tool" id="btnGrid" title="Raster-Vorlage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="1.5"/><path d="M9 3v18M15 3v18M3 12h18"/></svg><span>Vorlage</span></button>
+      <button class="tool" id="btnItem" title="Gegenstand als Umriss einplanen (G)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="7" width="16" height="10" rx="2" stroke-dasharray="3 2"/><path d="M8 12h8"/></svg><span>Gegenstand</span></button>
+      <button class="tool" id="btnPhoto" title="Foto der Schublade als Vorlage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 8"/></svg></button>
+      <div class="menu" id="xfMenu">
+        <button class="tool" id="btnXf" title="Spiegeln / Drehen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18" stroke-dasharray="2 2"/><path d="M9 7L4 12l5 5zM15 7l5 5-5 5z"/></svg></button>
+        <div class="menu-pop">
+          <button data-xf="mx"><b>Links ↔ rechts spiegeln</b><small>Für die Schublade auf der anderen Seite</small></button>
+          <button data-xf="my"><b>Vorne ↔ hinten spiegeln</b><small>Fächer tauschen die Tiefe</small></button>
+          <button data-xf="rot"><b>Um 90° drehen</b><small>Breite und Tiefe tauschen – für quer eingebaute Schubladen</small></button>
+        </div>
+      </div>
       <button class="tool" id="btnClear" title="Alle Wände löschen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
       <div class="tsep"></div>
       <button class="tool" id="btnFit" title="Einpassen (F)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
@@ -415,6 +442,12 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
       </div>
     </div>
     <div class="sec" id="msgSec"><h3>Hinweise</h3><div id="msgs"></div></div>
+    <div class="sec" id="printSec" hidden>
+      <details id="printDet"><summary>Druck-Checkliste <b id="printCount"></b></summary>
+        <div id="printList"></div>
+        <button class="btn" id="printReset" style="margin-top:6px">Alle zurücksetzen</button>
+      </details>
+    </div>
     <div class="sec" id="selSec" hidden><h3>Auswahl</h3><div id="selInfo" class="sel-info"></div></div>
     <div class="sec"><h3>Stückliste <span class="count" id="bomCount"></span></h3><div id="bom"></div></div>
     <div class="sec" id="planSec"><h3>Aufbauplan</h3><div id="plan"></div></div>
@@ -426,6 +459,8 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
         <span><i style="background:var(--conn-slip)"></i>Aufsteck</span>
         <span><i style="background:var(--joint)"></i>Verlängerung</span>
         <span><i style="background:var(--rail)"></i>Schiene</span>
+        <span><i style="background:var(--wall);opacity:.5"></i>Niedrige Wand</span>
+        <span><i style="border:1.5px dashed var(--sel)"></i>Gegenstand</span>
       </div>
       <p class="hint">Mausrad = Zoom · Rechte/mittlere Maustaste = Verschieben · Entf = Auswahl löschen · Esc = Abbrechen</p>
     </div>
@@ -454,6 +489,31 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
     <label class="field"><span>Reihen</span><input type="number" id="gRows" min="1" max="30" value="2"></label>
   </div>
   <div class="actions"><button class="btn" value="cancel" id="gCancel">Abbrechen</button><button class="btn primary" id="gOk">Anwenden</button></div>
+</dialog>
+
+<dialog id="itemDlg">
+  <h3>Gegenstand einplanen</h3>
+  <p class="hint" style="margin:0 0 12px">Legt den Umriss als Rechteck in die Schublade – zum Fächer-Drumherum-Zeichnen. Er wird nicht gedruckt.</p>
+  <label class="field"><span>Vorlage</span><select id="itPreset"></select></label>
+  <label class="field"><span>Name</span><input type="text" id="itName" maxlength="30"></label>
+  <div class="row2">
+    <label class="field"><span>Breite</span><div class="unit" data-u="mm"><input type="number" id="itW" min="5" step="1"></div></label>
+    <label class="field"><span>Länge</span><div class="unit" data-u="mm"><input type="number" id="itD" min="5" step="1"></div></label>
+  </div>
+  <div class="actions"><button class="btn" id="itCancel">Abbrechen</button><button class="btn primary" id="itOk">Einfügen</button></div>
+</dialog>
+
+<dialog id="bgDlg">
+  <h3>Foto als Vorlage</h3>
+  <p class="hint" id="bgHint" style="margin:0 0 10px">Fotografiere die Schublade möglichst von oben. Danach klickst du die vier Innenecken an – das Foto wird gerade gerückt und auf die Schublade gelegt.</p>
+  <div class="row2" style="align-items:end">
+    <button class="btn" id="bgPick">Foto wählen …</button>
+    <label class="field" style="margin:0"><span>Deckkraft</span><input type="range" id="bgOpacity" min="0.1" max="1" step="0.05"></label>
+  </div>
+  <input type="file" id="bgFile" accept="image/*" hidden>
+  <div id="bgStage" hidden><canvas id="bgCanvas"></canvas></div>
+  <p class="hint" id="bgStep"></p>
+  <div class="actions"><button class="btn" id="bgRemove">Foto entfernen</button><span class="spacer"></span><button class="btn" id="bgRedo">Ecken neu</button><button class="btn" id="bgClose">Schließen</button><button class="btn primary" id="bgApply" disabled>Übernehmen</button></div>
 </dialog>
 
 <dialog id="stlDlg">

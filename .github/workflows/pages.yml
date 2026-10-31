@@ -4,7 +4,7 @@ name: Designer auf GitHub Pages
 on:
   push:
     branches: [main]
-    paths: ["Drawer-Divider-Designer.html", ".github/workflows/pages.yml"]
+    paths: ["Drawer-Divider-Designer.html", "pwa/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -25,7 +25,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
-      - run: mkdir _site && cp Drawer-Divider-Designer.html _site/index.html
+      # the page plus what makes it an installable app (manifest, offline cache, icons)
+      - run: mkdir _site && cp Drawer-Divider-Designer.html _site/index.html && cp pwa/* _site/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

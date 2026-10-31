@@ -38,12 +38,19 @@
 | ⭕ **Round corners** | If the drawer has round inside corners, the frame corners are rounded to match |
 | 🏷️ **Compartment names & clips** | Name compartments (click or double-click). The name shows in the plan and is engraved into the label clip – or exported as a label list for [Open Label Studio](https://github.com/Barry2040/open-label-studio) |
 | 📏 **Measure** | Measure distances in the drawing, snaps to walls and the grid |
+| 🔢 **Type sizes** | Enter a wall position or the width/depth of a compartment – the neighbouring wall follows. Pick several walls with `Shift`+click and **space them evenly** |
+| 🪜 **Wall heights** | Make single walls lower, e.g. at the front to reach in more easily |
+| ✂️ **Plan around items** | Put scissors, a folding rule, cutlery … into the drawer as outlines and draw the compartments around them |
+| 📷 **Photo as template** | Load a photo of the drawer, click four corners – it is straightened and laid underneath for tracing |
+| 🔄 **Mirror & rotate** | For the drawer on the other side or drawers fitted sideways |
 | 🐝 **Wall patterns** | Honeycomb, circles or solid – saves filament and looks good |
 | 🧊 **3D preview** | The whole assembly in 3D, patterns included |
 | 🖨️ **STLs in the browser** | OpenSCAD runs right in the page and renders every print plate to fit your bed. Parts are packed tightly and mixed (fewer plates) – or one kind per plate |
 | 📦 **3MF & ZIP** | All plates in one 3MF file (Bambu Studio, OrcaSlicer, PrusaSlicer) or a ZIP with STLs, parts list and project |
 | 📋 **Assembly plan** | To print or save as PDF: drawing with wall letters, parts list and assembly steps |
 | 🔗 **Share link** | The whole layout is in the link – to send around or for MakerWorld |
+| ✅ **Print checklist** | Tick off the print plates – handy when printing takes several days |
+| 📱 **Phone & app** | Two fingers zoom and pan. Online, the designer can be installed as an app and then starts without internet too |
 | 🗄️ **Several drawers** | As many drawers as you like in the browser, switch next to the name at the top – with a combined parts list |
 | 💾 **Profiles** | Save tolerance, bed size and so on for your printer and load them for the next drawer |
 | 🌐 **Languages** | German and English, switch at the top right |
@@ -95,9 +102,12 @@ V3 follows the MakerWorld projects [V1 – The Drawer Dividers](https://makerwor
    | 🗂️ Template | – | a ready-made layout to start from |
    | ➗ Split | `S` | pick a number (`2`–`6` or *free*) and a direction (`Shift` toggles), click into a compartment |
    | ✏️ Draw | `W` | drag a wall with the mouse |
-   | 👆 Select | `V` | click a wall and move it, `Del` deletes it. Click a compartment to name it |
+   | 👆 Select | `V` | click a wall and move it or type its position, `Del` deletes it. `Shift`+click selects more walls. Click a compartment to name it or type its size |
    | 🧽 Erase | `E` | removes the wall piece between two connectors – that is also how you merge two compartments |
    | 📏 Measure | `M` | drag a distance, `Shift` measures without snapping |
+   | ✂️ Item | `G` | insert an outline (presets for workshop, kitchen, office) |
+   | 📷 Photo | – | lay a photo of the drawer underneath as a template |
+   | 🔄 Mirror / rotate | – | mirror the whole layout or turn it by 90° |
    | ↩️ Undo | `Ctrl+Z` / `Ctrl+Y` | |
    | 🧊 3D | – | preview of the assembly |
 
@@ -240,6 +250,7 @@ designer/                     HTML designer, source
   app.js                      planning, parts list, checks, 3D preview, assembly plan, print job
   stl.js                      STL rendering with OpenSCAD in the browser, ZIP and 3MF download
   scad_lib.js                 embedded SCAD library (generated)
+pwa/                          app files next to the online page: manifest, offline cache (sw.js), icons
 scad/
   drawer_designer.scad        SCAD designer
   connector.scad              single parts: connectors

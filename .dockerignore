@@ -1,3 +1,4 @@
-# the image only needs the generated single-file designer
+# the image only needs the generated single-file designer and the app files next to it
 *
 !Drawer-Divider-Designer.html
+!pwa/

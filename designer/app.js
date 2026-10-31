@@ -47,7 +47,7 @@ function defaultSettings() {
 }
 function defaultState() {
   return { version: 3, name: T('Meine Schublade'), drawer: { w: 400, d: 300, h: 60, r: 0 },
-           preset: '', profile: { ...DEFAULT_PROFILE }, settings: defaultSettings(), walls: [], names: [] };
+           preset: '', profile: { ...DEFAULT_PROFILE }, settings: defaultSettings(), walls: [], names: [], items: [], done: [] };
 }
 
 // ---------------------------------------------------------------------------
@@ -107,7 +107,7 @@ function normWall(w, g) {
   const L = w.o === 'h' ? g.W : g.D, M = w.o === 'h' ? g.D : g.W;
   const a = clamp(Math.min(w.a, w.b), g.B, L - g.B), b = clamp(Math.max(w.a, w.b), g.B, L - g.B);
   if (b - a < 1 || w.c < g.B - EPS || w.c > M - g.B + EPS) return null;
-  return { o: w.o, c: r2(w.c), a: r2(a), b: r2(b) };
+  return { o: w.o, c: r2(w.c), a: r2(a), b: r2(b), h: w.h > 0 ? +w.h : 0 };
 }
 
 function mergeLines(list) {
@@ -256,6 +256,24 @@ function analyze(S) {
   }
   for (const j of joints) { j.kind = 'conn'; j.type = 'straight'; j.joint = true; nodes.set('j' + j.x + ',' + j.y, j); }
 
+  // own wall heights (e.g. lower walls at the front to reach in); connectors keep the full height.
+  // Slip-on connectors sit on top of the walls, so there every wall keeps the full height.
+  const ownH = st.slip ? [] : raw.filter(l => l.h);
+  for (const pc of pieces) {
+    const m = (pc.s + pc.e) / 2, own = ownH.filter(l => l.o === pc.o && near(l.c, pc.c) && m >= l.a - EPS && m <= l.b + EPS);
+    pc.h = own.length ? r2(clamp(Math.max(...own.map(l => l.h)), 10, g.wallH)) : g.wallH;
+  }
+  const itemClash = new Set();
+  (S.items || []).forEach((it, i) => {
+    const t = g.t / 2;
+    if (pieces.some(pc => pc.o === 'h' ? pc.c + t > it.y && pc.c - t < it.y + it.d && pc.e > it.x && pc.s < it.x + it.w
+                                              : pc.c + t > it.x && pc.c - t < it.x + it.w && pc.e > it.y && pc.s < it.y + it.d)) {
+      itemClash.add(i);
+      msgs.push({ lvl: 'warn', text: T`${it.name || T('Ein Gegenstand')} liegt auf einer Wand.` });
+    }
+  });
+  if (st.slip && raw.some(l => l.h)) msgs.push({ lvl: 'info', text: T('Eigene Wandhöhen gelten nicht mit Aufsteck-Verbindern – die sitzen oben auf den Wänden.') });
+
   // a wall from the drawer side must be long enough that the connector arm does not hit the side
   const minLen = Math.max(8, g.armW), minEdgeLen = Math.max(minLen, p.arm - g.inset + 1);
   let tooShort = 0, negative = 0;
@@ -329,7 +347,7 @@ function analyze(S) {
   }
   const bom = buildBom(S, g, nodes, pieces, rails, comps.list.map(R => R.name || ''));
   const conflicts = pieces.filter(pc => pc.bad).length + collisions;
-  return { g, H, V, lines, nodes: [...nodes.values()], pieces, rails, comps, bom, msgs, conflicts };
+  return { g, H, V, lines, nodes: [...nodes.values()], pieces, rails, comps, bom, msgs, conflicts, itemClash };
 }
 
 function findCompartments(S, g, H0, V0) {
@@ -457,9 +475,10 @@ function buildBom(S, g, nodes, pieces, rails, clipNames = []) {
   const p = S.profile, dens = parseFloat(S.settings.density) / 1000;
   const conns = new Map(), walls = new Map(), railMap = new Map();
   for (const n of nodes.values()) if (n.kind === 'conn') conns.set(n.type, (conns.get(n.type) || 0) + 1);
+  const wallKey = pc => (Math.floor(pc.len * 10 + 0.05) / 10).toFixed(1) + '|' + r2(pc.h ?? g.wallH);
   for (const pc of pieces) if (pc.len > 0) {
-    const len = Math.floor(pc.len * 10 + 0.05) / 10, k = len.toFixed(1);
-    if (!walls.has(k)) walls.set(k, { len, h: r2(g.wallH), qty: 0 });
+    const len = Math.floor(pc.len * 10 + 0.05) / 10, k = wallKey(pc);
+    if (!walls.has(k)) walls.set(k, { len, h: r2(pc.h ?? g.wallH), qty: 0 });
     walls.get(k).qty++;
   }
   for (const r of rails) {
@@ -468,9 +487,9 @@ function buildBom(S, g, nodes, pieces, rails, clipNames = []) {
     railMap.get(k).qty++;
   }
   // walls are lettered A, B, C … longest first; the same letter is engraved and shown in the plan
-  const wallList = [...walls.values()].sort((a, b) => b.len - a.len);
+  const wallList = [...walls.values()].sort((a, b) => b.len - a.len || b.h - a.h);
   wallList.forEach((w, i) => { w.id = wallLetter(i); });
-  for (const pc of pieces) if (pc.len > 0) pc.id = walls.get((Math.floor(pc.len * 10 + 0.05) / 10).toFixed(1)).id;
+  for (const pc of pieces) if (pc.len > 0) pc.id = walls.get(wallKey(pc)).id;
   const out = {
     connectors: TYPE_ORDER.filter(t => conns.has(t)).map(t => ({ type: t, qty: conns.get(t), g: connVolume(t, g, p, S.settings.slip) * dens })),
     walls: wallList.map(w => ({ ...w, g: w.len * w.h * g.t * (1 - wallHoleFraction(w.len, w.h, S)) * dens })),
@@ -516,7 +535,9 @@ const shelf = (() => {
 let A = null;
 const hist = { past: [], future: [] };
 const ui = { tool: 'draw', view: { s: 1, tx: 0, ty: 0 }, drag: null, hover: null, sel: null, mouse: null,
-             splitN: 1, splitDir: 'v', shift: false, is3d: false };
+             splitN: 1, splitDir: 'v', shift: false, is3d: false, multi: new Set() };
+// the selected walls: the clicked one plus those added with Shift+click
+const selWalls = () => ui.sel === null || !S.walls[ui.sel] ? [] : [ui.sel, ...[...ui.multi].filter(i => i !== ui.sel && S.walls[i])];
 
 function loadStored() {
   try {
@@ -530,7 +551,9 @@ function migrate(o) {
   if (!o || typeof o !== 'object') return d;
   const r = { ...d, ...o, drawer: { ...d.drawer, ...o.drawer }, profile: { ...d.profile, ...o.profile },
               settings: { ...d.settings, ...o.settings }, walls: Array.isArray(o.walls) ? o.walls.filter(w => w && (w.o === 'h' || w.o === 'v')) : [],
-              names: Array.isArray(o.names) ? o.names.filter(n => n && isFinite(n.x) && isFinite(n.y) && typeof n.text === 'string').map(n => ({ x: +n.x, y: +n.y, text: cleanName(n.text) })).filter(n => n.text) : [] };
+              names: Array.isArray(o.names) ? o.names.filter(n => n && isFinite(n.x) && isFinite(n.y) && typeof n.text === 'string').map(n => ({ x: +n.x, y: +n.y, text: cleanName(n.text) })).filter(n => n.text) : [],
+              items: Array.isArray(o.items) ? o.items.filter(t => t && [t.x, t.y, t.w, t.d].every(v => isFinite(v)) && t.w > 0 && t.d > 0).map(t => ({ x: +t.x, y: +t.y, w: +t.w, d: +t.d, name: cleanName(t.name || '') })) : [],
+              done: Array.isArray(o.done) ? o.done.filter(x => typeof x === 'string') : [] };
   if (['v1', 'v2', 'custom'].includes(r.preset)) r.preset = '';   // old built-in presets
   if (o.settings && !('autoH' in o.settings)) r.settings.autoH = false;   // older saves: keep their own height
   syncAuto(r);
@@ -554,8 +577,8 @@ function commit(before) {
   persist(); render();
 }
 function mutate(fn) { const before = snapshot(); fn(); commit(before); }
-function undo() { if (!hist.past.length) return; hist.future.push(snapshot()); S = JSON.parse(hist.past.pop()); ui.sel = null; ui.selComp = null; syncInputs(); persist(); render(); }
-function redo() { if (!hist.future.length) return; hist.past.push(snapshot()); S = JSON.parse(hist.future.pop()); ui.sel = null; ui.selComp = null; syncInputs(); persist(); render(); }
+function undo() { if (!hist.past.length) return; hist.future.push(snapshot()); S = { ...JSON.parse(hist.past.pop()), done: S.done }; ui.sel = null; ui.multi.clear(); ui.selComp = null; ui.selItem = null; syncInputs(); persist(); render(); }
+function redo() { if (!hist.future.length) return; hist.past.push(snapshot()); S = { ...JSON.parse(hist.future.pop()), done: S.done }; ui.sel = null; ui.multi.clear(); ui.selComp = null; ui.selItem = null; syncInputs(); persist(); render(); }
 
 // equal-split positions so the *net* compartments come out equal
 function equalSplit(c0, c1, n, off0, off1, t) {
@@ -736,12 +759,23 @@ function drawSVG() {
       out.push(`<rect class="region-hl" x="${x0}" y="${y0}" width="${r2(x1 - x0)}" height="${r2(y1 - y0)}"/>`);
     }
   }
+  // the photo lies over the compartment colours, walls and outlines stay on top
+  if (bg.url && bg.id === S.bgId) out.push(`<image class="bg-photo" href="${bg.url}" x="0" y="0" width="${W}" height="${D}" preserveAspectRatio="none" opacity="${S.bgOpacity ?? 0.6}"/>`);
   const selR = ui.tool === 'select' && ui.selComp ? compAt(ui.selComp) : null;
   if (selR) for (const [ci, cj] of selR.cells) {
     const x0 = A.comps.xs[ci], x1 = A.comps.xs[ci + 1], y0 = A.comps.ys[cj], y1 = A.comps.ys[cj + 1];
     out.push(`<rect class="region-hl sel" x="${x0}" y="${y0}" width="${r2(x1 - x0)}" height="${r2(y1 - y0)}"/>`);
   }
   if (g.B > 0) out.push(`<rect class="inset" x="${g.B}" y="${g.B}" width="${r2(W - 2 * g.B)}" height="${r2(D - 2 * g.B)}"/>`);
+  (S.items || []).forEach((it, i) => {
+    const fz = Math.min(11 / s, it.w / Math.max(4, (it.name || '').length * 0.62), it.d / 3);
+    const vert = it.d > it.w * 1.6 && it.name;   // long thin things: the name runs along them
+    const cx = it.x + it.w / 2, cy = it.y + it.d / 2, fv = Math.min(11 / s, it.d / Math.max(4, (it.name || '').length * 0.62), it.w * 0.7);
+    out.push(`<g class="item${ui.selItem === i ? ' sel' : ''}${A.itemClash.has(i) ? ' clash' : ''}"><rect class="item-box" x="${r2(it.x)}" y="${r2(it.y)}" width="${r2(it.w)}" height="${r2(it.d)}" rx="${r2(Math.min(3, it.w / 4, it.d / 4))}"/>`
+      + (vert ? (fv * s >= 6 ? `<text class="item-txt" x="${r2(cx)}" y="${r2(cy)}" transform="rotate(-90 ${r2(cx)} ${r2(cy)})" style="font-size:${r2(fv)}px">${esc(it.name)}</text>` : '')
+              : (it.name && fz * s >= 6 ? `<text class="item-txt" x="${r2(cx)}" y="${r2(cy)}" style="font-size:${r2(fz)}px">${esc(it.name)}</text>` : ''))
+      + '</g>');
+  });
 
   // rails
   for (const r of A.rails) {
@@ -762,12 +796,13 @@ function drawSVG() {
     out.push(connSvg(n, g, p, 'conn' + (S.settings.slip ? ' slip' : '') + (n.joint ? ' joint' : '') + (n.clash ? ' clash' : '')));
 
   // walls – drawn over the connectors so the part that sits in the slot stays visible
-  const hlLine = ui.tool === 'select' && ui.sel !== null ? S.walls[ui.sel] : null;
+  const hlLines = ui.tool === 'select' ? selWalls().map(i => S.walls[i]) : [];
   for (const pc of A.pieces) {
     const t = g.t;
     const [x, y, w, h] = pc.o === 'h' ? [pc.s, pc.c - t / 2, pc.e - pc.s, t] : [pc.c - t / 2, pc.s, t, pc.e - pc.s];
     let cls = 'wall' + (pc.bad ? ' bad' : '');
-    if (hlLine && hlLine.o === pc.o && near(hlLine.c, pc.c) && pc.s < Math.max(hlLine.a, hlLine.b) && pc.e > Math.min(hlLine.a, hlLine.b)) cls += ' hl';
+    if (hlLines.some(hl => hl.o === pc.o && near(hl.c, pc.c) && pc.s < Math.max(hl.a, hl.b) && pc.e > Math.min(hl.a, hl.b))) cls += ' hl';
+    if (pc.h < g.wallH - EPS) cls += ' low';
     if (ui.eraseHL && ui.eraseHL.o === pc.o && near(ui.eraseHL.c, pc.c) && pc.s < ui.eraseHL.b && pc.e > ui.eraseHL.a) cls += ' erase';
     out.push(`<rect class="${cls}" x="${r2(x)}" y="${r2(y)}" width="${r2(Math.max(0.3, w))}" height="${r2(Math.max(0.3, h))}"/>`);
   }
@@ -863,6 +898,25 @@ function usage(grams) {
   return { meters, cost: grams / 1000 * (+st.price || 0), hours, time };
 }
 const wallBadge = id => `<span class="wall-badge">${id}</span>`;
+// Print checklist: one line per plate, ticked plates are remembered by their contents
+function drawChecklist(plates) {
+  $('#printSec').hidden = !plates.length;
+  const done = new Set(S.done || []), n = plates.filter(pl => done.has(pl.label)).length;
+  $('#printCount').textContent = plates.length ? `${n}/${plates.length}` : '';
+  $('#printList').innerHTML = plates.map((pl, i) => `<label class="check"><input type="checkbox" data-plate="${esc(pl.label)}"${done.has(pl.label) ? ' checked' : ''}><span>${T`Platte ${i + 1}`}<small title="${esc(pl.label)}">${esc(pl.label)}</small></span></label>`).join('');
+}
+$('#printList').addEventListener('change', e => {
+  const l = e.target.dataset.plate;
+  if (l === undefined) return;
+  const done = new Set(S.done || []);
+  if (e.target.checked) done.add(l); else done.delete(l);
+  // only plates that still exist
+  const now = new Set(platesFor().map(pl => pl.label));
+  S.done = [...done].filter(x => now.has(x));
+  persist(); drawPanels();
+});
+$('#printReset').addEventListener('click', () => { S.done = []; persist(); drawPanels(); });
+
 function drawPanels() {
   const b = A.bom, g = A.g;
   drawMenu();
@@ -874,7 +928,9 @@ function drawPanels() {
   $('#tCost').textContent = fmt(use.cost, 2);
   $('#tCostU').textContent = T`${S.settings.currency || ''} Material ca.`;
   $('#tTime').textContent = use.time;
-  $('#tPlates').textContent = b.parts ? platesFor().length : 0;
+  const plates = b.parts ? platesFor() : [];
+  $('#tPlates').textContent = plates.length;
+  drawChecklist(plates);
   $('#bomCount').textContent = b.parts ? T`${b.parts} Teile` : '';
 
   let h = '';
@@ -909,22 +965,61 @@ function drawPanels() {
                                      : '<div class="msg info"><span>✓</span><span>' + T('Alles passt.') + '</span></div>';
 
   const sec = $('#selSec');
-  if (ui.sel !== null && S.walls[ui.sel]) {
-    const w = S.walls[ui.sel];
-    const parts = A.pieces.filter(pc => pc.o === w.o && near(pc.c, w.c) && pc.s < w.b && pc.e > w.a);
+  const sel = selWalls(), full = r2(A.g.wallH);
+  const hField = (h) => `<label class="field" title="${T('Niedrigere Wände, z.B. vorne zum besseren Hineingreifen. Leer = volle Höhe.')}"><span>${T('Wandhöhe')}</span><div class="unit" data-u="mm"><input type="number" id="wallH" min="10" max="${full}" step="1" placeholder="${fmt(full)}" value="${h || ''}"></div></label>`;
+  const num = (id, v) => { const el = $(id); return el ? parseFloat(el.value) : v; };
+  if (ui.selItem != null && S.items[ui.selItem]) {
+    const i = ui.selItem, t = S.items[i];
     sec.hidden = false;
-    $('#selInfo').innerHTML = `<dl><dt>${T('Richtung')}</dt><dd>${w.o === 'h' ? T('waagerecht') : T('senkrecht')}</dd>
-      <dt>${T('Position')}</dt><dd>${w.o === 'h' ? 'Y' : 'X'} = ${fmt(w.c)} mm</dd>
-      <dt>${T('Mittellinie')}</dt><dd>${fmt(w.b - w.a)} mm</dd>
+    $('#selInfo').innerHTML = `<label class="field"><span>${T('Gegenstand')}</span><input type="text" id="itemName" maxlength="30" value="${esc(t.name)}"></label>
+      <div class="row2">
+        <label class="field"><span>${T('Breite')}</span><div class="unit" data-u="mm"><input type="number" id="itemW" min="5" step="1" value="${r2(t.w)}"></div></label>
+        <label class="field"><span>${T('Länge')}</span><div class="unit" data-u="mm"><input type="number" id="itemD" min="5" step="1" value="${r2(t.d)}"></div></label>
+      </div>
+      <div class="row2"><button class="btn" id="itemRot">${T('Drehen')}</button><button class="btn" id="itemDel">${T('Entfernen')}</button></div>
+      <p class="hint">${T('Nur zum Planen – wird nicht gedruckt. Ziehen zum Verschieben.')}</p>`;
+    $('#itemName').addEventListener('change', e => editItem(i, t => { t.name = cleanName(e.target.value) || T('Gegenstand'); }));
+    $('#itemW').addEventListener('change', e => editItem(i, t => { t.w = parseFloat(e.target.value) || t.w; }));
+    $('#itemD').addEventListener('change', e => editItem(i, t => { t.d = parseFloat(e.target.value) || t.d; }));
+    $('#itemRot').addEventListener('click', () => editItem(i, t => { const cx = t.x + t.w / 2, cy = t.y + t.d / 2; [t.w, t.d] = [t.d, t.w]; t.x = r2(cx - t.w / 2); t.y = r2(cy - t.d / 2); }));
+    $('#itemDel').addEventListener('click', () => { ui.selItem = null; mutate(() => S.items.splice(i, 1)); });
+  } else if (sel.length > 1) {
+    const ws = sel.map(i => S.walls[i]), same = ws.every(w => w.o === ws[0].o);
+    const hs = new Set(ws.map(w => w.h || 0));
+    sec.hidden = false;
+    $('#selInfo').innerHTML = `<p style="margin:0 0 8px"><b>${T`${sel.length} Wände ausgewählt`}</b></p>
+      ${hField(hs.size === 1 ? [...hs][0] : '')}
+      ${same ? `<button class="btn" id="btnDist" style="width:100%">${T('Gleich verteilen')}</button>` : ''}
+      <p class="hint">${same ? T('Verteilt die Wände so, dass die Fächer zwischen den Nachbarwänden gleich groß werden.') : T('Zum Verteilen nur parallele Wände auswählen.')} ${T('Shift+Klick wählt Wände ab.')}</p>`;
+    $('#wallH').addEventListener('change', () => setWallsH(sel, num('#wallH')));
+    if (same) $('#btnDist').addEventListener('click', () => distribute(sel));
+  } else if (sel.length) {
+    const i = sel[0], w = S.walls[i];
+    const parts = A.pieces.filter(pc => pc.o === w.o && near(pc.c, w.c) && pc.s < Math.max(w.a, w.b) && pc.e > Math.min(w.a, w.b));
+    sec.hidden = false;
+    $('#selInfo').innerHTML = `<div class="row2">
+        <label class="field"><span>${T('Position')} ${w.o === 'h' ? 'Y' : 'X'}</span><div class="unit" data-u="mm"><input type="number" id="wallPos" step="0.5" value="${r2(w.c)}"></div></label>
+        ${hField(w.h)}</div>
+      <dl><dt>${T('Richtung')}</dt><dd>${w.o === 'h' ? T('waagerecht') : T('senkrecht')}</dd>
+      <dt>${T('Mittellinie')}</dt><dd>${fmt(Math.abs(w.b - w.a))} mm</dd>
       <dt>${T('Druckteile')}</dt><dd>${parts.map(pc => fmt(pc.len) + ' mm').join(', ') || '–'}</dd></dl>
-      <p class="hint">${T('Ziehen zum Verschieben · Entf zum Löschen')}</p>`;
+      <p class="hint">${T('Ziehen zum Verschieben · Entf zum Löschen · Shift+Klick wählt weitere Wände')}</p>`;
+    $('#wallPos').addEventListener('change', () => setWallPos(i, num('#wallPos')));
+    $('#wallH').addEventListener('change', () => setWallsH([i], num('#wallH')));
   } else if (ui.selComp && compAt(ui.selComp)) {
-    const R = compAt(ui.selComp);
+    const R = compAt(ui.selComp), pt = ui.selComp;
     sec.hidden = false;
     $('#selInfo').innerHTML = `<label class="field"><span>${T('Name des Fachs')}</span><input type="text" id="compName" maxlength="30" placeholder="${T('z.B. Schrauben')}" value="${esc(R.name || '')}"></label>
-      <dl><dt>${T('Innenmaß')}</dt><dd>${R.rect ? `${fmt(R.netW)} × ${fmt(R.netD)} mm` : `${fmt(R.area / 100, 0)} cm²`}</dd></dl>
-      <p class="hint">${S.settings.clips ? T('Der Name wird in den Beschriftungsclip des Fachs graviert.') : T('Mit „Beschriftungsclips“ (Erweitert) wird der Name in einen Clip graviert.')}</p>`;
-    $('#compName').addEventListener('change', e => setCompName(ui.selComp, e.target.value));
+      ${R.rect ? `<div class="row2">
+        <label class="field"><span>${T('Breite innen')}</span><div class="unit" data-u="mm"><input type="number" id="compW" step="0.5" min="1" value="${r2(R.netW)}"></div></label>
+        <label class="field"><span>${T('Tiefe innen')}</span><div class="unit" data-u="mm"><input type="number" id="compD" step="0.5" min="1" value="${r2(R.netD)}"></div></label></div>`
+        : `<dl><dt>${T('Fläche')}</dt><dd>${fmt(R.area / 100, 0)} cm²</dd></dl>`}
+      <p class="hint">${S.settings.clips ? T('Der Name wird in den Beschriftungsclip des Fachs graviert.') : T('Mit „Beschriftungsclips“ (Erweitert) wird der Name in einen Clip graviert.')}${R.rect ? ' ' + T('Ein neues Maß verschiebt die Nachbarwand.') : ''}</p>`;
+    $('#compName').addEventListener('change', e => setCompName(pt, e.target.value));
+    if (R.rect) {
+      $('#compW').addEventListener('change', () => setCompSize(pt, 'x', num('#compW')));
+      $('#compD').addEventListener('change', () => setCompSize(pt, 'y', num('#compD')));
+    }
   } else sec.hidden = true;
 }
 
@@ -959,6 +1054,7 @@ addEventListener('beforeprint', () => { ui.printing = true; drawSVG(); });
 addEventListener('afterprint', () => { ui.printing = false; drawSVG(); });
 
 function render() {
+  if (S.bgId !== bg.id) loadPhoto();
   A = analyze(S);
   drawSVG();
   drawPanels();
@@ -1109,7 +1205,7 @@ $('#projName').addEventListener('change', e => mutate(() => { S.name = e.target.
 // ---------------------------------------------------------------------------
 function setTool(t) {
   ui.tool = t; ui.drag = null; ui.eraseHL = null; ui.measure = null; ui.splitPreview = null; ui.splitRegion = null;
-  if (t !== 'select') { ui.sel = null; ui.selComp = null; }
+  if (t !== 'select') { ui.sel = null; ui.multi.clear(); ui.selComp = null; ui.selItem = null; }
   for (const b of $$('.tool[data-tool]')) b.classList.toggle('on', b.dataset.tool === t);
   svg.setAttribute('class', 't-' + t);
   $('#splitBar').classList.toggle('show', t === 'split');
@@ -1162,6 +1258,178 @@ function hitNode(m) {
 }
 
 // the compartment under a point (null on a wall or outside)
+// Moves walls to new positions ([[index, c], …]). Walls ending on a moved wall go along:
+// their end point follows, so the compartments stay closed. Ends are matched against the
+// old positions, so moving several walls at once cannot drag an end twice.
+function moveWalls(moves) {
+  const orig = S.walls.map(w => ({ ...w })), moved = new Set(moves.map(m => m[0]));
+  for (const [i, c] of moves) {
+    const w = orig[i], lo = Math.min(w.a, w.b) - EPS, hi = Math.max(w.a, w.b) + EPS;
+    orig.forEach((q, j) => {
+      if (moved.has(j) || q.o === w.o || q.c < lo || q.c > hi) return;
+      if (near(q.a, w.c)) S.walls[j].a = c;
+      if (near(q.b, w.c)) S.walls[j].b = c;
+    });
+    S.walls[i].c = c;
+  }
+}
+// rail mode: walls sit in the rail slots
+const onSlot = (c, o) => S.settings.border === 'rail' ? nearestOf(railSlots(o === 'v' ? 'x' : 'y', S, A.g).slots, c) : r2(c);
+// applies a wall change; takes it back when it would leave parts that do not fit
+function tryWalls(fn) {
+  const before = snapshot(), was = A.conflicts;
+  fn();
+  if (badPieces(S) > was) { S = JSON.parse(before); flash(TOO_CLOSE()); render(); return false; }
+  commit(before);
+  return true;
+}
+function setWallPos(i, v) {
+  const w = S.walls[i], g = A.g, L = w.o === 'h' ? g.D : g.W;
+  if (!w || !isFinite(v)) return;
+  const c = onSlot(clamp(v, g.B, L - g.B), w.o);
+  const chk = wallGapCheck({ o: w.o, c, a: Math.min(w.a, w.b), b: Math.max(w.a, w.b) }, w.c);
+  if (chk.c === null) { flash(T`Zu nah an der Nachbarwand oder am Rand – mindestens ${fmt(chk.minGap, 0)} mm Abstand.`); render(); return; }
+  tryWalls(() => moveWalls([[i, chk.c]]));
+}
+// own height for the selected walls; empty or the full height = normal
+function setWallsH(list, v) {
+  const full = A.g.wallH;
+  mutate(() => {
+    for (const i of list) {
+      if (!isFinite(v) || v >= full - EPS) delete S.walls[i].h;
+      else S.walls[i].h = r2(clamp(v, 10, full));
+    }
+  });
+}
+// net width (axis 'x') or depth ('y') of a rectangular compartment: the wall on the far
+// side moves (or the near one, when the far side is the drawer edge or the frame)
+function setCompSize(pt, axis, net) {
+  const R = compAt(pt), C = A.comps, g = A.g;
+  if (!R || !R.rect || !isFinite(net) || net <= 0) return;
+  const [lo, hi, L, o, plo, phi] = axis === 'x' ? [R.x0, R.x1, g.W, 'v', R.y0, R.y1] : [R.y0, R.y1, g.D, 'h', R.x0, R.x1];
+  const at = c => S.walls.map((w, i) => i).filter(i => {
+    const w = S.walls[i];
+    return w.o === o && near(w.c, c) && Math.min(w.a, w.b) < phi - EPS && Math.max(w.a, w.b) > plo + EPS;
+  });
+  let idx = at(hi), c;
+  if (idx.length) c = lo + C.sideOff(lo, L) + net + g.t / 2;
+  else if ((idx = at(lo)).length) c = hi - C.sideOff(hi, L) - net - g.t / 2;
+  else { flash(T('Dieses Fach wird nur vom Rand begrenzt – seine Größe ergibt sich aus der Schublade.')); render(); return; }
+  c = onSlot(clamp(c, g.B, L - g.B), o);
+  tryWalls(() => moveWalls(idx.map(i => [i, c])));
+}
+// spaces the selected parallel walls so the compartments between their neighbours come out equal
+function distribute(list) {
+  const ws = list.map(i => S.walls[i]), o = ws[0].o, g = A.g, L = o === 'v' ? g.W : g.D;
+  if (ws.some(w => w.o !== o)) { flash(T('Zum Verteilen nur parallele Wände auswählen.')); return; }
+  const a = Math.max(...ws.map(w => Math.min(w.a, w.b))), b = Math.min(...ws.map(w => Math.max(w.a, w.b)));
+  const cs = ws.map(w => w.c), minC = Math.min(...cs), maxC = Math.max(...cs);
+  const par = A.lines.filter(l => l.o === o && l.a < b - EPS && l.b > a + EPS && !cs.some(c => near(c, l.c))).map(l => l.c);
+  const lo = Math.max(0, ...par.filter(c => c < minC - EPS)), hi = Math.min(L, ...par.filter(c => c > maxC + EPS));
+  const pos = equalSplit(lo, hi, ws.length + 1, A.comps.sideOff(lo, L), A.comps.sideOff(hi, L), g.t).map(c => onSlot(c, o));
+  const order = [...list].sort((i, j) => S.walls[i].c - S.walls[j].c);
+  tryWalls(() => moveWalls(order.map((i, k) => [i, pos[k]])));
+}
+
+// ---- touch: two fingers zoom and pan, whatever tool is active ----------------------
+const touches = new Map();
+function cancelDrag() {
+  const d = ui.drag;
+  if (d && d.before && (d.type === 'move' || d.type === 'item')) S = JSON.parse(d.before);
+  if (d && d.type === 'measure') ui.measure = null;
+  ui.drag = null; svg.classList.remove('panning');
+  render();
+}
+function startPinch() {
+  const [a, b] = [...touches.values()], r = svg.getBoundingClientRect();
+  const mid = { x: (a.x + b.x) / 2 - r.left, y: (a.y + b.y) / 2 - r.top };
+  ui.pinch = { d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, s0: ui.view.s, cx: (mid.x - ui.view.tx) / ui.view.s, cy: (mid.y - ui.view.ty) / ui.view.s };
+}
+function movePinch() {
+  const [a, b] = [...touches.values()], r = svg.getBoundingClientRect(), P = ui.pinch;
+  const mid = { x: (a.x + b.x) / 2 - r.left, y: (a.y + b.y) / 2 - r.top };
+  const ns = clamp(P.s0 * Math.hypot(a.x - b.x, a.y - b.y) / P.d0, 0.05, 40);
+  ui.view = { s: ns, tx: mid.x - P.cx * ns, ty: mid.y - P.cy * ns };
+  applyView(); drawSVG();
+}
+
+// ---- things to plan around (outlines, not printed) ----------------------------------
+function hitItem(m) {
+  const its = S.items || [];
+  for (let i = its.length - 1; i >= 0; i--) { const t = its[i]; if (m.x >= t.x && m.x <= t.x + t.w && m.y >= t.y && m.y <= t.y + t.d) return i; }
+  return null;
+}
+// rough sizes (width × length in mm); the dialog lets you correct them
+const ITEM_PRESETS = [
+  [T('Werkstatt'), [[T('Schraubendreher'), 30, 200], [T('Bit-Box'), 75, 115], [T('Zollstock'), 17, 235], [T('Maßband'), 70, 70], [T('Cuttermesser'), 25, 160],
+                    [T('Kombizange'), 55, 180], [T('Inbus-Set'), 40, 120], [T('Schere'), 75, 200], [T('Taschenlampe'), 30, 150], [T('Batterien AA (4er)'), 30, 55]]],
+  [T('Küche'), [[T('Messer'), 20, 220], [T('Gabel'), 25, 200], [T('Esslöffel'), 45, 200], [T('Teelöffel'), 30, 140], [T('Schneebesen'), 60, 270],
+                [T('Pfannenwender'), 80, 300], [T('Dosenöffner'), 50, 180], [T('Sparschäler'), 30, 160]]],
+  [T('Büro'), [[T('Kugelschreiber'), 12, 145], [T('Bleistift'), 8, 175], [T('Lineal 30 cm'), 30, 310], [T('Notizblock A6'), 105, 148], [T('Klebeband-Abroller'), 60, 130],
+               [T('Tacker'), 40, 150], [T('Haftnotizen'), 76, 76], [T('USB-Stick'), 20, 60]]],
+];
+function openItemDialog() {
+  const sel = $('#itPreset');
+  if (!sel.options.length) {
+    sel.innerHTML = `<option value="">${T('Eigene Maße')}</option>` + ITEM_PRESETS.map(([grp, list], gi) =>
+      `<optgroup label="${esc(grp)}">${list.map(([n, w, d], k) => `<option value="${gi}:${k}">${esc(n)} – ${w} × ${d} mm</option>`).join('')}</optgroup>`).join('');
+    sel.addEventListener('change', () => {
+      if (!sel.value) return;
+      const [gi, k] = sel.value.split(':').map(Number), [n, w, d] = ITEM_PRESETS[gi][1][k];
+      $('#itName').value = n; $('#itW').value = w; $('#itD').value = d;
+    });
+  }
+  sel.value = ''; $('#itName').value = ''; $('#itW').value = 30; $('#itD').value = 150;
+  $('#itemDlg').showModal(); $('#itName').focus();
+}
+$('#btnItem').addEventListener('click', openItemDialog);
+$('#itCancel').addEventListener('click', e => { e.preventDefault(); $('#itemDlg').close(); });
+$('#itOk').addEventListener('click', e => {
+  e.preventDefault();
+  const g = A.g, w = clamp(parseFloat($('#itW').value) || 30, 5, g.W), d = clamp(parseFloat($('#itD').value) || 150, 5, g.D);
+  const name = cleanName($('#itName').value) || T('Gegenstand');
+  $('#itemDlg').close();
+  setTool('select');
+  mutate(() => { S.items = S.items || []; S.items.push({ x: r2((g.W - w) / 2), y: r2((g.D - d) / 2), w, d, name }); });
+  ui.selItem = S.items.length - 1; render();
+  flash(T('Gegenstand eingefügt – mit „Auswählen“ verschieben, Fächer drumherum zeichnen.'));
+});
+function editItem(i, fn) { mutate(() => { const t = S.items[i]; fn(t); t.w = clamp(t.w, 5, A.g.W); t.d = clamp(t.d, 5, A.g.D); t.x = clamp(t.x, 0, A.g.W - t.w); t.y = clamp(t.y, 0, A.g.D - t.d); }); }
+
+// ---- mirror and rotate the whole layout ----------------------------------------------
+function transformLayout(kind) {
+  const W = S.drawer.w, D = S.drawer.d, lo = w => Math.min(w.a, w.b), hi = w => Math.max(w.a, w.b);
+  mutate(() => {
+    if (kind === 'mx') {
+      for (const w of S.walls) if (w.o === 'v') w.c = r2(W - w.c); else [w.a, w.b] = [r2(W - hi(w)), r2(W - lo(w))];
+      for (const n of S.names) n.x = r2(W - n.x);
+      for (const t of S.items) t.x = r2(W - t.x - t.w);
+    } else if (kind === 'my') {
+      for (const w of S.walls) if (w.o === 'h') w.c = r2(D - w.c); else [w.a, w.b] = [r2(D - hi(w)), r2(D - lo(w))];
+      for (const n of S.names) n.y = r2(D - n.y);
+      for (const t of S.items) t.y = r2(D - t.y - t.d);
+    } else {
+      // a quarter turn clockwise: (x, y) -> (D - y, x)
+      S.walls = S.walls.map(w => w.o === 'v' ? { ...w, o: 'h', c: w.c, a: r2(D - hi(w)), b: r2(D - lo(w)) }
+                                             : { ...w, o: 'v', c: r2(D - w.c), a: lo(w), b: hi(w) });
+      S.names = S.names.map(n => ({ ...n, x: r2(D - n.y), y: n.x }));
+      S.items = S.items.map(t => ({ ...t, x: r2(D - t.y - t.d), y: t.x, w: t.d, d: t.w }));
+      S.drawer.w = D; S.drawer.d = W;
+    }
+    if (S.settings.border === 'rail') {
+      const g = geom(S);
+      for (const w of S.walls) w.c = nearestOf(railSlots(w.o === 'v' ? 'x' : 'y', S, g).slots, w.c);
+    }
+    ui.sel = null; ui.multi.clear(); ui.selComp = null; ui.selItem = null;
+  });
+  if (bg.url && S.bgId) transformPhoto(kind);
+  syncInputs(); fit(); render();
+}
+const xfMenu = $('#xfMenu');
+$('#btnXf').addEventListener('click', e => { e.stopPropagation(); xfMenu.classList.toggle('open'); });
+document.addEventListener('click', () => xfMenu.classList.remove('open'));
+for (const b of $$('[data-xf]')) b.addEventListener('click', () => { xfMenu.classList.remove('open'); transformLayout(b.dataset.xf); });
+
 // measuring snaps like drawing (walls, grid, edges); Shift measures freely
 const measurePt = m => ui.shift ? { x: r2(m.x), y: r2(m.y) } : snapPt(m.x, m.y);
 function compAt(m) {
@@ -1224,6 +1492,11 @@ svg.addEventListener('contextmenu', e => e.preventDefault());
 svg.addEventListener('pointerdown', e => {
   const m = toMM(e);
   svg.setPointerCapture(e.pointerId);
+  if (e.pointerType === 'touch') {
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (touches.size === 2) { cancelDrag(); startPinch(); return; }
+    if (touches.size > 2) return;
+  }
   if (e.button === 1 || e.button === 2 || (e.button === 0 && ui.space)) {
     ui.drag = { type: 'pan', x: e.clientX, y: e.clientY, tx: ui.view.tx, ty: ui.view.ty };
     svg.classList.add('panning'); return;
@@ -1232,7 +1505,21 @@ svg.addEventListener('pointerdown', e => {
   if (ui.tool === 'draw') ui.drag = { type: 'draw', p0: snapPt(m.x, m.y), p1: null };
   else if (ui.tool === 'select') {
     const i = hitUserWall(m);
-    ui.sel = i; ui.selComp = i === null && compAt(m) ? { x: r2(m.x), y: r2(m.y) } : null;
+    if (e.shiftKey && i !== null && ui.sel !== null) {
+      // Shift+click adds or removes a wall, for heights and even spacing
+      if (i === ui.sel) { const rest = selWalls().slice(1); ui.sel = rest.length ? rest[0] : null; ui.multi = new Set(rest.slice(1)); }
+      else if (ui.multi.has(i)) ui.multi.delete(i); else ui.multi.add(i);
+      render(); return;
+    }
+    const it = i === null ? hitItem(m) : null;
+    ui.selItem = it;
+    if (it !== null) {
+      const t = S.items[it];
+      ui.sel = null; ui.multi.clear(); ui.selComp = null; ui.selItem = null;
+      ui.drag = { type: 'item', idx: it, start: m, x0: t.x, y0: t.y, before: snapshot() };
+      render(); return;
+    }
+    ui.sel = i; ui.multi.clear(); ui.selComp = i === null && compAt(m) ? { x: r2(m.x), y: r2(m.y) } : null;
     if (i !== null) ui.drag = { type: 'move', idx: i, start: m, c0: S.walls[i].c, before: snapshot() };
     render();
   } else if (ui.tool === 'erase') {
@@ -1252,6 +1539,10 @@ svg.addEventListener('pointerdown', e => {
   }
 });
 svg.addEventListener('pointermove', e => {
+  if (e.pointerType === 'touch' && touches.has(e.pointerId)) {
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ui.pinch) { movePinch(); return; }
+  }
   const m = toMM(e);
   ui.mouse = m;
   $('#sx').textContent = fmt(m.x) + ' mm'; $('#sy').textContent = fmt(m.y) + ' mm';
@@ -1260,23 +1551,32 @@ svg.addEventListener('pointermove', e => {
   if (d && d.type === 'draw') {
     const q = snapPt(m.x, m.y);
     d.p1 = Math.abs(q.x - d.p0.x) >= Math.abs(q.y - d.p0.y) ? { x: q.x, y: d.p0.y } : { x: d.p0.x, y: q.y };
+  } else if (d && d.type === 'item') {
+    const t = S.items[d.idx];
+    t.x = r2(clamp(Math.round(d.x0 + m.x - d.start.x), 0, Math.max(0, A.g.W - t.w)));
+    t.y = r2(clamp(Math.round(d.y0 + m.y - d.start.y), 0, Math.max(0, A.g.D - t.d)));
+    render(); return;
   } else if (d && d.type === 'measure') {
     ui.measure.p1 = measurePt(m);
   } else if (d && d.type === 'move') {
     const w = S.walls[d.idx], delta = w.o === 'h' ? m.y - d.start.y : m.x - d.start.x;
-    const old = w.c; w.c = d.c0;
     const nc = snapAxis(d.c0 + delta, w.o === 'h' ? 'y' : 'x', { noMagnet: true });
-    w.c = nc;
-    if (nc !== old) { render(); return; }
+    if (nc !== w.c) { S.walls = JSON.parse(d.before).walls; moveWalls([[d.idx, nc]]); render(); return; }
   } else if (ui.tool === 'erase') ui.eraseHL = hitLineInterval(m);
   else if (ui.tool === 'split') computeSplit(m);
   const n = !d && hitNode(m);
   showTip(e, n ? `${typeName(n.type)}${n.joint ? T(' (Verlängerung)') : ''}` : null);
   drawSVG();
 });
+svg.addEventListener('pointercancel', e => { touches.delete(e.pointerId); if (touches.size < 2) ui.pinch = null; cancelDrag(); });
 svg.addEventListener('pointerup', e => {
+  if (e.pointerType === 'touch') {
+    touches.delete(e.pointerId);
+    if (ui.pinch) { if (touches.size < 2) { ui.pinch = null; ui.drag = null; } return; }
+  }
   const d = ui.drag; ui.drag = null; svg.classList.remove('panning');
   if (!d) return;
+  if (d.type === 'item') { commit(d.before); return; }
   if (d.type === 'draw' && d.p1) {
     const w = d.p0.y === d.p1.y ? { o: 'h', c: d.p0.y, a: Math.min(d.p0.x, d.p1.x), b: Math.max(d.p0.x, d.p1.x) }
                                 : { o: 'v', c: d.p0.x, a: Math.min(d.p0.y, d.p1.y), b: Math.max(d.p0.y, d.p1.y) };
@@ -1285,10 +1585,12 @@ svg.addEventListener('pointerup', e => {
     else if (chk && chk.c !== null) mutate(() => S.walls.push({ ...w, c: chk.c }));
     else { if (chk) flash(T`Zu nah an der Nachbarwand oder am Rand – mindestens ${fmt(chk.minGap, 0)} mm Abstand, sonst passen die Verbinder nicht.`); drawSVG(); }
   } else if (d.type === 'move') {
-    const w = S.walls[d.idx], chk = wallGapCheck({ o: w.o, c: w.c, a: Math.min(w.a, w.b), b: Math.max(w.a, w.b) }, w.c);
-    if (chk.c === null) { w.c = d.c0; flash(T`Zu nah an der Nachbarwand oder am Rand – mindestens ${fmt(chk.minGap, 0)} mm Abstand.`); render(); }
-    else if (chk.c !== w.c) { w.c = chk.c; render(); }
-    if (w.c !== d.c0 && badPieces(S) > badPieces(JSON.parse(d.before))) { w.c = d.c0; flash(TOO_CLOSE()); render(); }
+    const w = S.walls[d.idx], restore = () => { S.walls = JSON.parse(d.before).walls; };
+    const chk = wallGapCheck({ o: w.o, c: w.c, a: Math.min(w.a, w.b), b: Math.max(w.a, w.b) }, w.c);
+    if (chk.c === null) { restore(); flash(T`Zu nah an der Nachbarwand oder am Rand – mindestens ${fmt(chk.minGap, 0)} mm Abstand.`); }
+    else if (chk.c !== w.c) { restore(); moveWalls([[d.idx, chk.c]]); }
+    if (S.walls[d.idx].c !== d.c0 && badPieces(S) > badPieces(JSON.parse(d.before))) { restore(); flash(TOO_CLOSE()); }
+    render();
     commit(d.before);
   } else drawSVG();
 });
@@ -1335,10 +1637,15 @@ window.addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (k === 'w') setTool('draw'); else if (k === 's') setTool('split'); else if (k === 'v') setTool('select'); else if (k === 'e') setTool('erase');
   else if (k === 'm') setTool('measure');
+  else if (k === 'g') openItemDialog();
   else if (k === 'f') fit();
   else if (k === ' ') { ui.space = true; e.preventDefault(); }
-  else if (k === 'escape') { ui.drag = null; ui.sel = null; ui.selComp = null; ui.measure = null; render(); }
-  else if ((k === 'delete' || k === 'backspace') && ui.sel !== null) { const i = ui.sel; ui.sel = null; mutate(() => S.walls.splice(i, 1)); }
+  else if (k === 'escape') { ui.drag = null; ui.sel = null; ui.multi.clear(); ui.selComp = null; ui.selItem = null; ui.measure = null; render(); }
+  else if ((k === 'delete' || k === 'backspace') && ui.selItem != null && S.items[ui.selItem]) { const i = ui.selItem; ui.selItem = null; mutate(() => S.items.splice(i, 1)); }
+  else if ((k === 'delete' || k === 'backspace') && ui.sel !== null) {
+    const del = selWalls().sort((a, b) => b - a); ui.sel = null; ui.multi.clear();
+    mutate(() => { for (const i of del) S.walls.splice(i, 1); });
+  }
   else if (ui.tool === 'split' && /^[1-6]$/.test(k)) { ui.splitN = +k; syncSplitBar(); }
   if (e.key === 'Shift' && !ui.shift) { ui.shift = true; if (ui.mouse && ui.tool === 'split') { computeSplit(ui.mouse); drawSVG(); } }
 });
@@ -1374,7 +1681,7 @@ $('#btnRedo').addEventListener('click', redo);
 $('#btnFit').addEventListener('click', fit);
 $('#btnClear').addEventListener('click', async () => {
   if (S.walls.length && await ask(T('Alle Wände löschen?'), { text: T('Mit Strg+Z kannst du das rückgängig machen.'), ok: T('Löschen') }))
-    mutate(() => { S.walls = []; ui.sel = null; });
+    mutate(() => { S.walls = []; ui.sel = null; ui.multi.clear(); });
 });
 const gridDlg = $('#gridDlg');
 // strips from left to right (relative widths), each split front to back (relative depths)
@@ -1396,7 +1703,7 @@ $('#gOk').addEventListener('click', e => {
   const tpl = TEMPLATES[$('#gTpl').value];
   const c = clamp(parseInt($('#gCols').value) || 1, 1, 30), r = clamp(parseInt($('#gRows').value) || 1, 1, 30);
   gridDlg.close();
-  mutate(() => { S.walls = tpl ? stripWalls(S, tpl.cols, tpl.rows) : gridWalls(S, c, r); ui.sel = null; });
+  mutate(() => { S.walls = tpl ? stripWalls(S, tpl.cols, tpl.rows) : gridWalls(S, c, r); ui.sel = null; ui.multi.clear(); });
   if (A.conflicts) flash(T('Die Schublade ist für diese Vorlage zu klein – rot markierte Stellen anpassen.'));
 });
 
@@ -1435,7 +1742,157 @@ for (const b of $$('[data-export]')) b.addEventListener('click', () => {
   if (k === 'print') window.print();
   if (k === 'offline') saveOffline();
   if (k === 'link') shareLink();
+  if (k === 'install' && installPrompt) installPrompt.prompt();
 });
+
+// ---- photo of the drawer as a tracing background ----------------------------------
+// The straightened photo is kept per drawer in localStorage ('dd-bg-<id>'), outside the
+// undo history; S.bgId points to it.
+const bg = { id: undefined, url: null };
+const BG_KEY = id => 'dd-bg-' + id;
+function loadPhoto() {
+  if (bg.url) URL.revokeObjectURL(bg.url);
+  bg.id = S.bgId; bg.url = null;
+  if (!S.bgId) return;
+  try {
+    const data = localStorage.getItem(BG_KEY(S.bgId));
+    if (data) bg.url = URL.createObjectURL(dataUrlBlob(data));
+  } catch { /* no storage */ }
+  if (!bg.url && bgMem.has(S.bgId)) bg.url = URL.createObjectURL(dataUrlBlob(bgMem.get(S.bgId)));
+}
+const bgMem = new Map();   // photos too big for the storage live until the page closes
+function dataUrlBlob(u) {
+  const [head, b64] = u.split(','), bin = atob(b64), arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: head.slice(5).split(';')[0] });
+}
+function storePhoto(dataUrl) {
+  const id = Math.random().toString(36).slice(2, 10);
+  try { localStorage.setItem(BG_KEY(id), dataUrl); }
+  catch { bgMem.set(id, dataUrl); flash(T('Das Foto ist zu groß zum Speichern – es bleibt bis zum Neuladen der Seite.')); }
+  const old = S.bgId;
+  S.bgId = id; persist(); dropPhoto(old);
+  render();
+}
+// removes a stored photo unless another drawer still uses it
+function dropPhoto(id) {
+  if (!id || shelf.list.some(d => d.bgId === id)) return;
+  try { localStorage.removeItem(BG_KEY(id)); } catch { /* no storage */ }
+  bgMem.delete(id);
+}
+// Solves the perspective transform that maps the four points src onto dst.
+function homography(src, dst) {
+  const A8 = [], b8 = [];
+  for (let i = 0; i < 4; i++) {
+    const [x, y] = src[i], [u, v] = dst[i];
+    A8.push([x, y, 1, 0, 0, 0, -u * x, -u * y]); b8.push(u);
+    A8.push([0, 0, 0, x, y, 1, -v * x, -v * y]); b8.push(v);
+  }
+  for (let c = 0; c < 8; c++) {   // Gauss with pivoting
+    let pr = c; for (let r = c + 1; r < 8; r++) if (Math.abs(A8[r][c]) > Math.abs(A8[pr][c])) pr = r;
+    [A8[c], A8[pr]] = [A8[pr], A8[c]]; [b8[c], b8[pr]] = [b8[pr], b8[c]];
+    for (let r = 0; r < 8; r++) if (r !== c) {
+      const f = A8[r][c] / A8[c][c];
+      for (let k = c; k < 8; k++) A8[r][k] -= f * A8[c][k];
+      b8[r] -= f * b8[c];
+    }
+  }
+  return [...b8.map((v, i) => v / A8[i][i]), 1];
+}
+// straightens the marked drawer (corners: back left, back right, front right, front left)
+function warpPhoto(img, corners) {
+  const W = S.drawer.w, D = S.drawer.d, k = Math.min(1600 / Math.max(W, D), 4);
+  const ow = Math.round(W * k), oh = Math.round(D * k);
+  const src = document.createElement('canvas'); src.width = img.width; src.height = img.height;
+  const sc = src.getContext('2d'); sc.drawImage(img, 0, 0);
+  const sd = sc.getImageData(0, 0, img.width, img.height).data;
+  const H = homography([[0, 0], [ow, 0], [ow, oh], [0, oh]], corners);
+  const out = document.createElement('canvas'); out.width = ow; out.height = oh;
+  const oc = out.getContext('2d'), od = oc.createImageData(ow, oh);
+  for (let y = 0; y < oh; y++) for (let x = 0; x < ow; x++) {
+    const z = H[6] * x + H[7] * y + H[8];
+    const sx = Math.round((H[0] * x + H[1] * y + H[2]) / z), sy = Math.round((H[3] * x + H[4] * y + H[5]) / z);
+    const o = (y * ow + x) * 4;
+    if (sx < 0 || sy < 0 || sx >= img.width || sy >= img.height) { od.data[o + 3] = 0; continue; }
+    const q = (sy * img.width + sx) * 4;
+    od.data[o] = sd[q]; od.data[o + 1] = sd[q + 1]; od.data[o + 2] = sd[q + 2]; od.data[o + 3] = 255;
+  }
+  oc.putImageData(od, 0, 0);
+  return out.toDataURL('image/jpeg', 0.82);
+}
+// mirror / rotate the stored photo along with the layout
+function transformPhoto(kind) {
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement('canvas'), x = c.getContext('2d');
+    if (kind === 'rot') { c.width = img.height; c.height = img.width; x.translate(c.width, 0); x.rotate(Math.PI / 2); }
+    else { c.width = img.width; c.height = img.height; if (kind === 'mx') { x.translate(c.width, 0); x.scale(-1, 1); } else { x.translate(0, c.height); x.scale(1, -1); } }
+    x.drawImage(img, 0, 0);
+    storePhoto(c.toDataURL('image/jpeg', 0.82));
+  };
+  img.src = bg.url;
+}
+const bgUi = { img: null, pts: [] };
+const CORNER_NAMES = () => [T('hinten links'), T('hinten rechts'), T('vorne rechts'), T('vorne links')];
+function drawBgCanvas() {
+  const cv = $('#bgCanvas'), img = bgUi.img;
+  if (!img) return;
+  const c = cv.getContext('2d');
+  c.drawImage(img, 0, 0, cv.width, cv.height);
+  const f = cv.width / img.width, pts = bgUi.pts.map(([x, y]) => [x * f, y * f]), r = Math.max(4, cv.width / 120);
+  c.lineWidth = r / 2; c.strokeStyle = '#2563eb'; c.fillStyle = 'rgba(37,99,235,.18)';
+  if (pts.length > 1) { c.beginPath(); pts.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); if (pts.length === 4) { c.closePath(); c.fill(); } c.stroke(); }
+  c.font = `bold ${r * 3}px system-ui`; c.textAlign = 'center'; c.textBaseline = 'middle';
+  pts.forEach(([x, y], i) => { c.fillStyle = '#2563eb'; c.beginPath(); c.arc(x, y, r * 1.8, 0, 7); c.fill(); c.fillStyle = '#fff'; c.fillText(i + 1, x, y); });
+  const n = bgUi.pts.length;
+  $('#bgStep').textContent = n < 4 ? T`Klicke Ecke ${n + 1} von 4: ${CORNER_NAMES()[n]} (innen, wo Boden und Wand sich treffen).` : T('Alle Ecken gesetzt – „Übernehmen“ legt das Foto auf die Schublade.');
+  $('#bgApply').disabled = n < 4;
+}
+$('#btnPhoto').addEventListener('click', () => {
+  bgUi.img = null; bgUi.pts = [];
+  $('#bgStage').hidden = true; $('#bgStep').textContent = ''; $('#bgApply').disabled = true;
+  $('#bgOpacity').value = S.bgOpacity ?? 0.6;
+  $('#bgRemove').hidden = !S.bgId;
+  $('#bgDlg').showModal();
+});
+$('#bgPick').addEventListener('click', () => $('#bgFile').click());
+$('#bgFile').addEventListener('change', e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  const img = new Image();
+  img.onload = () => {
+    // big camera photos are scaled down first, plenty for tracing
+    const k = Math.min(1, 2000 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(img.src);
+    bgUi.img = c; bgUi.pts = [];
+    const cv = $('#bgCanvas'); cv.width = Math.min(1100, c.width); cv.height = Math.round(cv.width * c.height / c.width);
+    $('#bgStage').hidden = false; drawBgCanvas();
+  };
+  img.onerror = () => flash(T('Das Bild konnte nicht geladen werden.'));
+  img.src = URL.createObjectURL(f);
+});
+$('#bgCanvas').addEventListener('pointerdown', e => {
+  if (!bgUi.img || bgUi.pts.length >= 4) return;
+  const cv = $('#bgCanvas'), r = cv.getBoundingClientRect(), f = bgUi.img.width / r.width;
+  bgUi.pts.push([(e.clientX - r.left) * f, (e.clientY - r.top) * f]);
+  drawBgCanvas();
+});
+$('#bgRedo').addEventListener('click', () => { bgUi.pts = []; drawBgCanvas(); });
+$('#bgClose').addEventListener('click', e => { e.preventDefault(); $('#bgDlg').close(); });
+$('#bgApply').addEventListener('click', e => {
+  e.preventDefault();
+  if (bgUi.pts.length < 4) return;
+  storePhoto(warpPhoto(bgUi.img, bgUi.pts));
+  $('#bgDlg').close();
+});
+$('#bgRemove').addEventListener('click', e => {
+  e.preventDefault();
+  const old = S.bgId; delete S.bgId; persist(); dropPhoto(old); render();
+  $('#bgDlg').close();
+});
+$('#bgOpacity').addEventListener('input', e => { S.bgOpacity = +e.target.value; persist(); drawSVG(); });
 
 // ---- several drawers -----------------------------------------------------------
 function openDrawer(i) {
@@ -1443,7 +1900,7 @@ function openDrawer(i) {
   shelf.cur = clamp(i, 0, shelf.list.length - 1);
   S = shelf.list[shelf.cur];
   hist.past = []; hist.future = [];
-  ui.sel = null; ui.selComp = null; ui.measure = null;
+  ui.sel = null; ui.multi.clear(); ui.selComp = null; ui.selItem = null; ui.measure = null;
   syncInputs(); persist(); fit(); render();
 }
 // opened files and links come in as new drawers, so nothing gets overwritten;
@@ -1481,7 +1938,8 @@ for (const b of $$('[data-drawer]')) b.addEventListener('click', async () => {
     openDrawer(shelf.cur + 1);
   }
   if (k === 'del' && shelf.list.length > 1 && await ask(T`„${S.name}“ löschen?`, { text: T('Die Schublade wird aus der Liste entfernt. Das lässt sich nicht rückgängig machen.'), ok: T('Löschen') })) {
-    shelf.list.splice(shelf.cur, 1);
+    const [gone] = shelf.list.splice(shelf.cur, 1);
+    dropPhoto(gone.bgId);
     shelf.cur = Math.min(shelf.cur, shelf.list.length - 1); S = shelf.list[shelf.cur];
     openDrawer(shelf.cur);
   }
@@ -1521,8 +1979,8 @@ const b64url = bytes => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').
 const unb64url = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
 async function pipe(bytes, stream) { return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer()); }
 async function shareLink() {
-  const { name, drawer, profile, settings, walls, names } = S;
-  const data = await pipe(new TextEncoder().encode(JSON.stringify({ name, drawer, profile, settings, walls, names })), new CompressionStream('deflate-raw'));
+  const { name, drawer, profile, settings, walls, names, items } = S;
+  const data = await pipe(new TextEncoder().encode(JSON.stringify({ name, drawer, profile, settings, walls, names, items })), new CompressionStream('deflate-raw'));
   const base = location.protocol.startsWith('http') ? location.origin + location.pathname : PAGES_URL;
   const url = base + '#p=' + b64url(data);
   try { await navigator.clipboard.writeText(url); flash(T('Link kopiert – er enthält das ganze Layout.')); }
@@ -1759,7 +2217,7 @@ function build3D(resetCam) {
   // walls, with the hole pattern and grip they are printed with
   const V2 = (x, y) => new THREE.Vector2(x, y);
   for (const pc of A.pieces) if (pc.len > 0) {
-    const L = pc.len, h = g.wallH, gr = Math.min(st.grip, L / 2 - 1, h - 1);
+    const L = pc.len, h = pc.h, gr = Math.min(st.grip, L / 2 - 1, h - 1);
     const outline = [V2(-L / 2, 0), V2(L / 2, 0), V2(L / 2, h)];
     if (gr > 0) for (let k = 0; k <= 16; k++) { const t = -Math.PI * k / 16; outline.push(V2(gr * Math.cos(t), h + gr * Math.sin(t))); }
     outline.push(V2(-L / 2, h));
@@ -1832,3 +2290,13 @@ setTool('draw');
 new ResizeObserver(() => { fit(); drawSVG(); }).observe($('#canvasWrap'));
 loadFromHash();
 addEventListener('hashchange', loadFromHash);
+
+// Installable app: only the published page (next to it: manifest, sw.js, icons) over https or localhost
+if ('serviceWorker' in navigator && document.querySelector('meta[name="dd-standalone"]') && window.isSecureContext && location.protocol.startsWith('http')) {
+  const link = document.createElement('link'); link.rel = 'manifest'; link.href = 'manifest.webmanifest'; document.head.appendChild(link);
+  const icon = document.createElement('link'); icon.rel = 'apple-touch-icon'; icon.href = 'icon-192.png'; document.head.appendChild(icon);
+  navigator.serviceWorker.register('sw.js').catch(() => { /* no offline cache, the page works anyway */ });
+}
+let installPrompt = null;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $('[data-export="install"]').hidden = false; });
+addEventListener('appinstalled', () => { installPrompt = null; $('[data-export="install"]').hidden = true; });
