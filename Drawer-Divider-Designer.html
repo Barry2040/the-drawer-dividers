@@ -339,6 +339,8 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
         <label class="field"><span>Material</span>
           <select data-k="settings.density"><option value="1.24">PLA</option><option value="1.27">PETG</option><option value="1.04">ABS</option><option value="1.07">ASA</option></select></label>
       </div>
+      <label class="check"><input type="checkbox" data-k="settings.clips"><span>Beschriftungsclips<small>Ein Clip pro Fach zum Aufstecken auf die Wand – mit Stift beschriften oder Etikett aufkleben</small></span></label>
+      <label class="check"><input type="checkbox" data-k="settings.labels"><span>Wände beschriften<small>Buchstabe und Länge werden in die Wandenden graviert (verschwinden im Verbinder) und stehen im Plan</small></span></label>
     </div>
 
     <div class="sec">
@@ -368,8 +370,6 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
           <label class="field"><span>Filamentpreis</span><div class="unit" data-u="/kg"><input type="number" data-k="settings.price" step="1" min="0"></div></label>
           <label class="field"><span>Währung</span><input type="text" data-k="settings.currency" maxlength="4"></label>
         </div>
-        <label class="check"><input type="checkbox" data-k="settings.clips"><span>Beschriftungsclips<small>Ein Clip pro Fach zum Aufstecken auf die Wand – mit Stift beschriften oder Etikett aufkleben</small></span></label>
-        <label class="check"><input type="checkbox" data-k="settings.labels"><span>Wände beschriften<small>Buchstabe und Länge werden in die Wandenden graviert (verschwinden im Verbinder) und stehen im Plan</small></span></label>
         <p class="hint" style="margin:0 0 10px">Längere Wände werden automatisch mit geraden Verbindern geteilt.</p>
         <h4 class="sub">Verbinder</h4>
         <div class="row2">
@@ -460,7 +460,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
         <button class="btn" id="printReset" style="margin-top:6px">Alle zurücksetzen</button>
       </details>
     </div>
-    <div class="sec" id="selSec" hidden><h3>Auswahl</h3><div id="selInfo" class="sel-info"></div></div>
+    <div class="sec" id="selSec"><h3>Auswahl</h3><div id="selInfo" class="sel-info"></div></div>
     <div class="sec"><h3>Stückliste <span class="count" id="bomCount"></span></h3><div id="bom"></div></div>
     <div class="sec" id="planSec"><h3>Aufbauplan</h3><div id="plan"></div></div>
     <div class="sec">
@@ -749,7 +749,10 @@ const EN = {
   'Mehrere Schubladen in diesem Browser': 'Several drawers in this browser',
   'Messen': 'Measure',
   'Messen (M)': 'Measure (M)',
-  'Mit „Beschriftungsclips“ (Erweitert) wird der Name in einen Clip graviert.': 'With “Label clips” (Advanced) the name is engraved into a clip.',
+  'Mit „Beschriftungsclips“ (Trenner) wird der Name in einen Clip graviert.': 'With “Label clips” (Dividers) the name is engraved into a clip.',
+  'Wand anklicken: Position und Wandhöhe – z.B. vorne niedriger zum Hineingreifen.': 'Click a wall: position and wall height – e.g. lower at the front to reach in.',
+  'Fach anklicken: Name für den Beschriftungsclip und Innenmaße.': 'Click a compartment: name for the label clip and inner size.',
+  'Auswählen-Werkzeug (V)': 'Select tool (V)',
   'Name des Fachs': 'Compartment name',
   'Name eingraviert': 'Name engraved',
   'Neue Schublade': 'New drawer',
@@ -1938,13 +1941,19 @@ function drawPanels() {
         <label class="field"><span>${T('Breite innen')}</span><div class="unit" data-u="mm"><input type="number" id="compW" step="0.5" min="1" value="${r2(R.netW)}"></div></label>
         <label class="field"><span>${T('Tiefe innen')}</span><div class="unit" data-u="mm"><input type="number" id="compD" step="0.5" min="1" value="${r2(R.netD)}"></div></label></div>`
         : `<dl><dt>${T('Fläche')}</dt><dd>${fmt(R.area / 100, 0)} cm²</dd></dl>`}
-      <p class="hint">${S.settings.clips ? T('Der Name wird in den Beschriftungsclip des Fachs graviert.') : T('Mit „Beschriftungsclips“ (Erweitert) wird der Name in einen Clip graviert.')}${R.rect ? ' ' + T('Ein neues Maß verschiebt die Nachbarwand.') : ''}</p>`;
+      <p class="hint">${S.settings.clips ? T('Der Name wird in den Beschriftungsclip des Fachs graviert.') : T('Mit „Beschriftungsclips“ (Trenner) wird der Name in einen Clip graviert.')}${R.rect ? ' ' + T('Ein neues Maß verschiebt die Nachbarwand.') : ''}</p>`;
     $('#compName').addEventListener('change', e => setCompName(pt, e.target.value));
     if (R.rect) {
       $('#compW').addEventListener('change', () => setCompSize(pt, 'x', num('#compW')));
       $('#compD').addEventListener('change', () => setCompSize(pt, 'y', num('#compD')));
     }
-  } else sec.hidden = true;
+  } else {
+    // nothing selected: tell people what a click on a wall or a compartment offers
+    sec.hidden = false;
+    $('#selInfo').innerHTML = `<p class="hint" style="margin:0 0 8px">${T('Wand anklicken: Position und Wandhöhe – z.B. vorne niedriger zum Hineingreifen.')}<br>${T('Fach anklicken: Name für den Beschriftungsclip und Innenmaße.')}</p>
+      ${ui.tool !== 'select' ? `<button class="btn" id="selTool" style="width:100%">${T('Auswählen-Werkzeug (V)')}</button>` : ''}`;
+    if (ui.tool !== 'select') $('#selTool').addEventListener('click', () => setTool('select'));
+  }
 }
 
 // Printed assembly plan: parts by letter and the steps for this edge mode.

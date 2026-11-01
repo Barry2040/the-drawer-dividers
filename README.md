@@ -132,8 +132,9 @@ V3 ist der Nachfolger der MakerWorld-Projekte [V1 – The Drawer Dividers](https
 
 ### ⚙️ Einstellungen
 
-- **Trenner** – Wanddicke, Toleranz, Höhe, Wand-Muster und Material. Mehr brauchst du meistens nicht.
-- **Erweitert** – Druckbett, max. Wandlänge, liegend oder stehend drucken, Griffmulde, Fangraster, Beschriftungsclips, Wände beschriften, alle Verbinder-Maße und die Raster-Schiene. *Alles auf Standard zurücksetzen* holt die V2-Werte zurück.
+- **Trenner** – Wanddicke, Toleranz, Höhe, Wand-Muster, Material, Beschriftungsclips und Wände beschriften. Mehr brauchst du meistens nicht.
+- **Erweitert** – Druckbett, max. Wandlänge, liegend oder stehend drucken, Griffmulde, Fangraster, alle Verbinder-Maße und die Raster-Schiene. *Alles auf Standard zurücksetzen* holt die V2-Werte zurück.
+- **Auswahl** – eine Wand anklicken für Position und Wandhöhe, ein Fach anklicken für Name und Innenmaße. Ohne Auswahl steht dort, was geht.
 - **Mein Profil** – speichert alles außer Schublade, Rand und Fächern unter einem Namen, z. B. für deinen Drucker.
 
 Dein Projekt speichert der Designer automatisch im Browser. Mit *Speichern* / *Öffnen* sicherst du es als `.json`-Datei. *Zurücksetzen* löscht alle Schubladen, Profile und Fotos im Browser und stellt alles auf Standard – nur die Sprache bleibt.

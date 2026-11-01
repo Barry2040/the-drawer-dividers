@@ -337,6 +337,8 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
         <label class="field"><span>Material</span>
           <select data-k="settings.density"><option value="1.24">PLA</option><option value="1.27">PETG</option><option value="1.04">ABS</option><option value="1.07">ASA</option></select></label>
       </div>
+      <label class="check"><input type="checkbox" data-k="settings.clips"><span>Beschriftungsclips<small>Ein Clip pro Fach zum Aufstecken auf die Wand – mit Stift beschriften oder Etikett aufkleben</small></span></label>
+      <label class="check"><input type="checkbox" data-k="settings.labels"><span>Wände beschriften<small>Buchstabe und Länge werden in die Wandenden graviert (verschwinden im Verbinder) und stehen im Plan</small></span></label>
     </div>
 
     <div class="sec">
@@ -366,8 +368,6 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
           <label class="field"><span>Filamentpreis</span><div class="unit" data-u="/kg"><input type="number" data-k="settings.price" step="1" min="0"></div></label>
           <label class="field"><span>Währung</span><input type="text" data-k="settings.currency" maxlength="4"></label>
         </div>
-        <label class="check"><input type="checkbox" data-k="settings.clips"><span>Beschriftungsclips<small>Ein Clip pro Fach zum Aufstecken auf die Wand – mit Stift beschriften oder Etikett aufkleben</small></span></label>
-        <label class="check"><input type="checkbox" data-k="settings.labels"><span>Wände beschriften<small>Buchstabe und Länge werden in die Wandenden graviert (verschwinden im Verbinder) und stehen im Plan</small></span></label>
         <p class="hint" style="margin:0 0 10px">Längere Wände werden automatisch mit geraden Verbindern geteilt.</p>
         <h4 class="sub">Verbinder</h4>
         <div class="row2">
@@ -458,7 +458,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
         <button class="btn" id="printReset" style="margin-top:6px">Alle zurücksetzen</button>
       </details>
     </div>
-    <div class="sec" id="selSec" hidden><h3>Auswahl</h3><div id="selInfo" class="sel-info"></div></div>
+    <div class="sec" id="selSec"><h3>Auswahl</h3><div id="selInfo" class="sel-info"></div></div>
     <div class="sec"><h3>Stückliste <span class="count" id="bomCount"></span></h3><div id="bom"></div></div>
     <div class="sec" id="planSec"><h3>Aufbauplan</h3><div id="plan"></div></div>
     <div class="sec">

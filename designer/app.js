@@ -1015,13 +1015,19 @@ function drawPanels() {
         <label class="field"><span>${T('Breite innen')}</span><div class="unit" data-u="mm"><input type="number" id="compW" step="0.5" min="1" value="${r2(R.netW)}"></div></label>
         <label class="field"><span>${T('Tiefe innen')}</span><div class="unit" data-u="mm"><input type="number" id="compD" step="0.5" min="1" value="${r2(R.netD)}"></div></label></div>`
         : `<dl><dt>${T('Fläche')}</dt><dd>${fmt(R.area / 100, 0)} cm²</dd></dl>`}
-      <p class="hint">${S.settings.clips ? T('Der Name wird in den Beschriftungsclip des Fachs graviert.') : T('Mit „Beschriftungsclips“ (Erweitert) wird der Name in einen Clip graviert.')}${R.rect ? ' ' + T('Ein neues Maß verschiebt die Nachbarwand.') : ''}</p>`;
+      <p class="hint">${S.settings.clips ? T('Der Name wird in den Beschriftungsclip des Fachs graviert.') : T('Mit „Beschriftungsclips“ (Trenner) wird der Name in einen Clip graviert.')}${R.rect ? ' ' + T('Ein neues Maß verschiebt die Nachbarwand.') : ''}</p>`;
     $('#compName').addEventListener('change', e => setCompName(pt, e.target.value));
     if (R.rect) {
       $('#compW').addEventListener('change', () => setCompSize(pt, 'x', num('#compW')));
       $('#compD').addEventListener('change', () => setCompSize(pt, 'y', num('#compD')));
     }
-  } else sec.hidden = true;
+  } else {
+    // nothing selected: tell people what a click on a wall or a compartment offers
+    sec.hidden = false;
+    $('#selInfo').innerHTML = `<p class="hint" style="margin:0 0 8px">${T('Wand anklicken: Position und Wandhöhe – z.B. vorne niedriger zum Hineingreifen.')}<br>${T('Fach anklicken: Name für den Beschriftungsclip und Innenmaße.')}</p>
+      ${ui.tool !== 'select' ? `<button class="btn" id="selTool" style="width:100%">${T('Auswählen-Werkzeug (V)')}</button>` : ''}`;
+    if (ui.tool !== 'select') $('#selTool').addEventListener('click', () => setTool('select'));
+  }
 }
 
 // Printed assembly plan: parts by letter and the steps for this edge mode.
