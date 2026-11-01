@@ -187,6 +187,8 @@ const EN = {
   'Wand anklicken: Position und Wandhöhe – z.B. vorne niedriger zum Hineingreifen.': 'Click a wall: position and wall height – e.g. lower at the front to reach in.',
   'Fach anklicken: Name für den Beschriftungsclip und Innenmaße.': 'Click a compartment: name for the label clip and inner size.',
   'Auswählen-Werkzeug (V)': 'Select tool (V)',
+  '❓ Anleitung': '❓ Guide', 'Anleitung': 'Guide', 'Alle Funktionen und wo du sie findest': 'All features and where to find them',
+  'Funktion suchen …': 'Search feature …', 'Nichts gefunden.': 'Nothing found.',
   'Name des Fachs': 'Compartment name',
   'Name eingraviert': 'Name engraved',
   'Neue Schublade': 'New drawer',

@@ -194,6 +194,25 @@ dialog h3 { margin: 0 0 12px; font-size: 15px; }
 #stlDlg { width: 520px; max-width: calc(100vw - 32px); }
 #bgDlg { width: 600px; max-width: calc(100vw - 32px); }
 #laserDlg { width: 560px; max-width: calc(100vw - 32px); }
+#helpDlg { width: 760px; max-width: calc(100vw - 24px); height: 86vh; padding: 0; display: none; flex-direction: column; }
+#helpDlg[open] { display: flex; }
+.gd-head { display: flex; gap: 10px; align-items: center; padding: 14px 18px 10px; }
+.gd-head h3 { margin: 0; flex: none; }
+#gdSearch { flex: 1; min-width: 0; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; }
+#gdToc { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 18px 10px; border-bottom: 1px solid var(--line); }
+#gdToc button { border: 1px solid var(--line); background: none; color: var(--text); border-radius: 999px; padding: 3px 10px; font: inherit; font-size: 12px; cursor: pointer; }
+#gdToc button:hover { border-color: var(--accent); }
+#gdBody { overflow-y: auto; padding: 4px 18px 18px; flex: 1; }
+#gdBody h4 { margin: 18px 0 8px; font-size: 14px; scroll-margin-top: 8px; }
+.gd-item { display: flex; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); }
+.gd-ic { font-size: 20px; width: 26px; flex: none; text-align: center; }
+.gd-item b { font-size: 13.5px; }
+.gd-where { display: inline-block; margin: 3px 0 2px; font-size: 11.5px; padding: 1px 8px; border-radius: 6px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--text); }
+.gd-item p { margin: 3px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
+.gd-item p b { font-size: inherit; color: var(--text); }
+.gd-keys { border-collapse: collapse; font-size: 12.5px; }
+.gd-keys td { padding: 4px 14px 4px 0; border-top: 1px solid var(--line); }
+#helpDlg kbd { font: 11px ui-monospace, monospace; padding: 1px 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; }
 #lzCount { font-weight: 500; color: var(--muted); font-size: 13px; margin-left: 6px; }
 #lzWarn { color: var(--err); }
 #lzList { max-height: 40vh; overflow: auto; margin-top: 10px; display: grid; gap: 8px; }
@@ -275,6 +294,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
     </div>
   </div>
   <div class="spacer"></div>
+  <button class="btn" id="btnHelp" title="Alle Funktionen und wo du sie findest">❓ Anleitung</button>
   <button class="btn" id="btnLang" title="Sprache / Language">EN</button>
   <button class="btn" id="btnReset" title="Alles auf Standard zurücksetzen: Schubladen, Profile, Fotos und Einstellungen">Zurücksetzen</button>
   <button class="btn" id="btnNew" title="Neues Projekt">Neu</button>
@@ -554,6 +574,12 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
   <div class="actions"><button class="btn" id="lzClose">Schließen</button><button class="btn primary" id="lzZip">Alle herunterladen</button></div>
 </dialog>
 
+<dialog id="helpDlg">
+  <div class="gd-head"><h3>Anleitung</h3><input type="search" id="gdSearch" placeholder="Funktion suchen …"><button class="btn" id="gdClose">Schließen</button></div>
+  <div id="gdToc"></div>
+  <div id="gdBody"></div>
+</dialog>
+
 <dialog id="askDlg">
   <h3 id="askTitle"></h3>
   <p class="hint" id="askText" style="margin:0 0 10px"></p>
@@ -566,6 +592,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top
 <script src="app.js"></script>
 <script src="stl.js"></script>
 <script src="laser.js"></script>
+<script src="guide.js"></script>
 <script>
   // opened on its own without the .js files next to it: say which file to use instead
   if (typeof analyze !== 'function') document.body.innerHTML = '<div style="max-width:560px;margin:15vh auto;padding:24px;font:15px system-ui;line-height:1.5">'

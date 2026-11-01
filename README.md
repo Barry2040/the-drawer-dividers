@@ -137,6 +137,8 @@ V3 ist der Nachfolger der MakerWorld-Projekte [V1 – The Drawer Dividers](https
 - **Auswahl** – eine Wand anklicken für Position und Wandhöhe, ein Fach anklicken für Name und Innenmaße. Ohne Auswahl steht dort, was geht.
 - **Mein Profil** – speichert alles außer Schublade, Rand und Fächern unter einem Namen, z. B. für deinen Drucker.
 
+Alle Funktionen und wo du sie findest, stehen im Designer oben unter **❓ Anleitung** – mit Suche.
+
 Dein Projekt speichert der Designer automatisch im Browser. Mit *Speichern* / *Öffnen* sicherst du es als `.json`-Datei. *Zurücksetzen* löscht alle Schubladen, Profile und Fotos im Browser und stellt alles auf Standard – nur die Sprache bleibt.
 
 ## 🖨️ Druck-Tipps
@@ -252,6 +254,7 @@ designer/                     HTML-Designer, Quelle
   app.js                      Planung, Stückliste, Prüfungen, 3D-Vorschau, Aufbauplan, Druckjob
   stl.js                      STL-Erzeugung mit OpenSCAD im Browser, ZIP- und 3MF-Download
   laser.js                    Laserdateien (SVG) für Wände aus Holz oder Acryl
+  guide.js                    eingebaute Anleitung (Knopf „Anleitung“)
   scad_lib.js                 eingebettete SCAD-Bibliothek (wird erzeugt)
 pwa/                          App-Dateien neben der Online-Seite: Manifest, Offline-Cache (sw.js), Icons
 fonts/                        Liberation Sans (SIL OFL) – Schrift für Gravuren beim STL-Erzeugen im Browser

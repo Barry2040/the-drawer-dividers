@@ -137,6 +137,8 @@ V3 follows the MakerWorld projects [V1 – The Drawer Dividers](https://makerwor
 - **Selection** – click a wall for position and wall height, click a compartment for its name and inner size. With nothing selected it tells you what you can do.
 - **My profile** – saves everything except drawer, edge and compartments under a name, e.g. for your printer.
 
+Every feature and where to find it is in the designer under **❓ Guide** at the top – with search.
+
 The designer saves your project automatically in the browser. *Save* / *Open* keep it as a `.json` file. *Reset* deletes all drawers, profiles and photos in the browser and puts everything back to default – only the language stays.
 
 ## 🖨️ Printing tips
@@ -252,6 +254,7 @@ designer/                     HTML designer, source
   app.js                      planning, parts list, checks, 3D preview, assembly plan, print job
   stl.js                      STL rendering with OpenSCAD in the browser, ZIP and 3MF download
   laser.js                    laser files (SVG) for walls cut from wood or acrylic
+  guide.js                    built-in guide (“Guide” button)
   scad_lib.js                 embedded SCAD library (generated)
 pwa/                          app files next to the online page: manifest, offline cache (sw.js), icons
 fonts/                        Liberation Sans (SIL OFL) – font for engravings when making STLs in the browser
